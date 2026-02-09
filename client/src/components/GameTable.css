@@ -338,15 +338,48 @@
 .switch-teams-btn {
     background: rgba(255, 255, 255, 0.15);
     color: #fff;
+    border: 2px solid transparent;
 }
 
 .switch-teams-btn:hover:not(:disabled) {
     background: rgba(255, 255, 255, 0.25);
 }
 
+.switch-teams-btn.active {
+    background: rgba(76, 175, 80, 0.3);
+    border-color: #4caf50;
+    color: #4caf50;
+}
+
 .switch-teams-btn:disabled {
     opacity: 0.4;
     cursor: not-allowed;
+}
+
+.switch-indicator {
+    font-size: 1.2rem;
+    animation: rotate 2s linear infinite;
+}
+
+@keyframes rotate {
+    from {
+        transform: rotate(0deg);
+    }
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.team-instruction.warning {
+    background: rgba(255, 152, 0, 0.15);
+    border-color: rgba(255, 152, 0, 0.3);
+    color: #ff9800;
+}
+
+.ready-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    background: rgba(255, 255, 255, 0.2);
 }
 
 .copy-room-btn {

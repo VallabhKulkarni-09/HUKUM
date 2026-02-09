@@ -70,26 +70,45 @@ export class GameEngine {
     // ============================================
 
     /**
-     * Add a player to the game
+     * Add a player to the game with specified team
      */
-    addPlayer(id: PlayerId, name: string): Player | null {
+    addPlayer(id: PlayerId, name: string, team?: TeamId): Player | null {
         if (this.players.size >= 4) return null;
 
-        // Find next available seat
-        const takenSeats = new Set([...this.players.values()].map(p => p.seat));
-        let seat: SeatPosition = 0;
-        while (takenSeats.has(seat) && seat < 4) {
-            seat = (seat + 1) as SeatPosition;
+        // Count players per team
+        const teamCounts = { A: 0, B: 0 };
+        for (const p of this.players.values()) {
+            teamCounts[p.team]++;
         }
+
+        // If team specified, check if it's available
+        let assignedTeam: TeamId;
+        if (team) {
+            if (teamCounts[team] >= 2) {
+                return null; // Team is full
+            }
+            assignedTeam = team;
+        } else {
+            // Auto-assign to team with fewer players
+            assignedTeam = teamCounts.A <= teamCounts.B ? 'A' : 'B';
+        }
+
+        // Find available seat on the assigned team
+        const takenSeats = new Set([...this.players.values()].map(p => p.seat));
+        const teamSeats: SeatPosition[] = assignedTeam === 'A' ? [0, 2] : [1, 3];
+        const availableSeat = teamSeats.find(seat => !takenSeats.has(seat));
+
+        if (availableSeat === undefined) return null;
 
         const player: Player = {
             id,
             name,
-            seat,
-            team: getTeamForSeat(seat),
+            seat: availableSeat,
+            team: assignedTeam,
             hand: [],
             isReady: false,
             isConnected: true,
+            wantsSwitch: false,
         };
 
         this.players.set(id, player);
@@ -128,31 +147,107 @@ export class GameEngine {
     }
 
     /**
-     * Check if all players are ready
+     * Check if all players are ready and teams are balanced
      */
     allPlayersReady(): boolean {
         if (this.players.size !== 4) return false;
+
+        // Check teams are balanced (2v2)
+        const teamCounts = { A: 0, B: 0 };
+        for (const p of this.players.values()) {
+            teamCounts[p.team]++;
+        }
+
+        if (teamCounts.A !== 2 || teamCounts.B !== 2) return false;
+
         return [...this.players.values()].every(p => p.isReady);
     }
 
     /**
-     * Change a player's team
+     * Toggle switch request for a player
      */
-    changePlayerTeam(id: PlayerId, newTeam: TeamId): boolean {
+    toggleSwitchRequest(id: PlayerId): boolean {
         const player = this.players.get(id);
         if (!player) return false;
 
-        // Find an available seat on the new team
-        const takenSeats = new Set([...this.players.values()].filter(p => p.id !== id).map(p => p.seat));
-        const teamSeats: SeatPosition[] = newTeam === 'A' ? [0, 2] : [1, 3];
+        // Only allow during WAITING_FOR_PLAYERS or READY_CHECK with 4 players
+        if (this.gameState.phase !== 'WAITING_FOR_PLAYERS' && this.gameState.phase !== 'READY_CHECK') {
+            return false;
+        }
 
-        const availableSeat = teamSeats.find(seat => !takenSeats.has(seat));
-        if (availableSeat === undefined) return false;
+        if (this.players.size !== 4) return false;
 
-        player.team = newTeam;
-        player.seat = availableSeat;
-        player.isReady = false; // Reset ready status when changing team
+        player.wantsSwitch = !player.wantsSwitch;
+
+        // Check if we can perform a swap
+        if (player.wantsSwitch) {
+            this.checkAndPerformSwap(id);
+        }
+
         return true;
+    }
+
+    /**
+     * Check if there's a matching switch request and perform swap
+     */
+    private checkAndPerformSwap(playerId: PlayerId): { swapped: boolean; partnerId?: PlayerId } {
+        const player = this.players.get(playerId);
+        if (!player || !player.wantsSwitch) return { swapped: false };
+
+        // Find a player from opposite team who also wants to switch
+        const oppositeTeam = player.team === 'A' ? 'B' : 'A';
+        const partner = [...this.players.values()].find(
+            p => p.team === oppositeTeam && p.wantsSwitch && p.id !== playerId
+        );
+
+        if (partner) {
+            // Perform the swap
+            this.swapPlayers(player.id, partner.id);
+            return { swapped: true, partnerId: partner.id };
+        }
+
+        return { swapped: false };
+    }
+
+    /**
+     * Swap two players' teams and seats
+     */
+    private swapPlayers(player1Id: PlayerId, player2Id: PlayerId): void {
+        const player1 = this.players.get(player1Id);
+        const player2 = this.players.get(player2Id);
+
+        if (!player1 || !player2) return;
+
+        // Swap teams and seats
+        const tempTeam = player1.team;
+        const tempSeat = player1.seat;
+
+        player1.team = player2.team;
+        player1.seat = player2.seat;
+
+        player2.team = tempTeam;
+        player2.seat = tempSeat;
+
+        // Reset switch requests and ready status
+        player1.wantsSwitch = false;
+        player2.wantsSwitch = false;
+        player1.isReady = false;
+        player2.isReady = false;
+    }
+
+    /**
+     * Get swap result for a player
+     */
+    getSwapResult(playerId: PlayerId): { swapped: boolean; partnerId?: PlayerId } {
+        return this.checkAndPerformSwap(playerId);
+    }
+
+    /**
+     * Change a player's team (REMOVED - replaced with toggle switch)
+     */
+    changePlayerTeam(id: PlayerId, newTeam: TeamId): boolean {
+        // This function is deprecated but kept for compatibility
+        return false;
     }
 
     // ============================================
@@ -621,6 +716,7 @@ export class GameEngine {
                 cardCount: p.hand.length,
                 isReady: p.isReady,
                 isConnected: p.isConnected,
+                wantsSwitch: p.wantsSwitch,
             })),
         };
     }

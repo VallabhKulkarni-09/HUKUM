@@ -20,7 +20,7 @@ function App() {
     chatMessages,
     createRoom,
     joinRoom,
-    changeTeam,
+    toggleSwitchRequest,
     setReady,
     passVakkai,
     declareVakkai,
@@ -56,7 +56,7 @@ function App() {
         onPlayCard={playCard}
         onSelectDealer={selectDealer}
         onReady={setReady}
-        onChangeTeam={changeTeam}
+        onToggleSwitchRequest={toggleSwitchRequest}
       />
 
       <DebugPanel

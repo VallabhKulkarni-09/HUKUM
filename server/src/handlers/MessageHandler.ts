@@ -21,15 +21,15 @@ export function handleMessage(socket: WebSocket, data: string): void {
 
         switch (message.type) {
             case 'CREATE_ROOM':
-                handleCreateRoom(socket, message.playerName, roomManager);
+                handleCreateRoom(socket, message.playerName, message.team, roomManager);
                 break;
 
             case 'JOIN_ROOM':
-                handleJoinRoom(socket, message.roomCode, message.playerName, roomManager);
+                handleJoinRoom(socket, message.roomCode, message.playerName, message.team, roomManager);
                 break;
 
-            case 'CHANGE_TEAM':
-                handleChangeTeam(socket, message.team, roomManager);
+            case 'TOGGLE_SWITCH_REQUEST':
+                handleToggleSwitchRequest(socket, roomManager);
                 break;
 
             case 'READY':
@@ -101,8 +101,8 @@ export function handleDisconnect(socket: WebSocket): void {
 // MESSAGE HANDLERS
 // ============================================
 
-function handleCreateRoom(socket: WebSocket, playerName: string, roomManager: RoomManager): void {
-    const result = roomManager.createRoom(playerName, socket);
+function handleCreateRoom(socket: WebSocket, playerName: string, team: TeamId, roomManager: RoomManager): void {
+    const result = roomManager.createRoom(playerName, team, socket);
 
     if (!result) {
         sendError(socket, 'Failed to create room');
@@ -131,11 +131,11 @@ function handleCreateRoom(socket: WebSocket, playerName: string, roomManager: Ro
     }
 }
 
-function handleJoinRoom(socket: WebSocket, roomCode: string, playerName: string, roomManager: RoomManager): void {
-    const result = roomManager.joinRoom(roomCode, playerName, socket);
+function handleJoinRoom(socket: WebSocket, roomCode: string, playerName: string, team: TeamId, roomManager: RoomManager): void {
+    const result = roomManager.joinRoom(roomCode, playerName, team, socket);
 
     if (!result) {
-        sendError(socket, 'Failed to join room (room full or not found)');
+        sendError(socket, 'Failed to join room (room full, team full, or not found)');
         return;
     }
 
@@ -162,6 +162,7 @@ function handleJoinRoom(socket: WebSocket, roomCode: string, playerName: string,
             team: player.team,
             isReady: player.isReady,
             isConnected: player.isConnected,
+            wantsSwitch: player.wantsSwitch,
         },
     }, playerId);
 
@@ -177,57 +178,49 @@ function handleJoinRoom(socket: WebSocket, roomCode: string, playerName: string,
     }
 }
 
-function handleChangeTeam(socket: WebSocket, team: TeamId, roomManager: RoomManager): void {
+function handleToggleSwitchRequest(socket: WebSocket, roomManager: RoomManager): void {
     const { playerId, roomCode, room } = getPlayerContext(socket, roomManager);
     if (!room) {
-        console.log('❌ Change team failed: room not found');
+        console.log('❌ Toggle switch failed: room not found');
         return;
     }
 
-    console.log(`👥 Player ${playerId.slice(0, 8)} requesting to join Team ${team}`);
+    console.log(`🔄 Player ${playerId.slice(0, 8)} toggling switch request`);
 
-    // Only allow team change during WAITING_FOR_PLAYERS or READY_CHECK phase
-    const phase = room.engine.getPhase();
-    if (phase !== 'WAITING_FOR_PLAYERS' && phase !== 'READY_CHECK') {
-        console.log(`❌ Cannot change team: game in phase ${phase}`);
-        sendError(socket, 'Cannot change team after game has started');
+    if (!room.engine.toggleSwitchRequest(playerId)) {
+        sendError(socket, 'Cannot toggle switch request now');
         return;
     }
 
-    // Check if player is already on the requested team
-    const currentPlayer = room.engine.getPlayer(playerId);
-    if (currentPlayer?.team === team) {
-        console.log(`ℹ️ Player already on Team ${team}`);
-        return; // Already on this team, no action needed
-    }
+    const player = room.engine.getPlayer(playerId);
+    if (!player) return;
 
-    // Check if a spot is available on the requested team (excluding current player)
-    const players = room.engine.getAllPlayers();
-    const otherPlayersOnTeam = players.filter(p => p.team === team && p.id !== playerId).length;
-
-    if (otherPlayersOnTeam >= 2) {
-        console.log(`❌ Team ${team} is full (${otherPlayersOnTeam}/2 other players)`);
-        sendError(socket, `Team ${team} is full`);
-        return;
-    }
-
-    // Change the team
-    if (!room.engine.changePlayerTeam(playerId, team)) {
-        console.log('❌ changePlayerTeam returned false');
-        sendError(socket, 'Failed to change team');
-        return;
-    }
-
-    console.log(`🔄 Player ${playerId.slice(0, 8)} changed to Team ${team}`);
-
-    // Notify all players
+    // Notify all players about the switch request update
     roomManager.broadcast(roomCode, {
-        type: 'TEAM_CHANGED',
+        type: 'SWITCH_REQUEST_UPDATED',
         playerId,
-        team,
+        wantsSwitch: player.wantsSwitch,
     });
 
+    // Check if a swap occurred
+    const swapResult = room.engine.getSwapResult(playerId);
+    if (swapResult.swapped && swapResult.partnerId) {
+        console.log(`🔀 Players ${playerId.slice(0, 8)} and ${swapResult.partnerId.slice(0, 8)} swapped teams`);
+        
+        // Notify all players about the swap
+        roomManager.broadcast(roomCode, {
+            type: 'TEAMS_SWAPPED',
+            player1Id: playerId,
+            player2Id: swapResult.partnerId,
+        });
+    }
+
     broadcastGameState(roomCode, roomManager);
+}
+
+function handleChangeTeam(socket: WebSocket, team: TeamId, roomManager: RoomManager): void {
+    // This function is deprecated - kept for compatibility but does nothing
+    sendError(socket, 'Team changing is no longer supported. Use switch team feature instead.');
 }
 
 function handleReady(socket: WebSocket, roomManager: RoomManager): void {

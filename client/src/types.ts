@@ -59,6 +59,7 @@ export interface PublicPlayer {
     cardCount: number;
     isReady: boolean;
     isConnected: boolean;
+    wantsSwitch: boolean;
 }
 
 export interface PublicGameState {
@@ -81,7 +82,8 @@ export type ServerMessage =
     | { type: 'PLAYER_JOINED'; player: PublicPlayer }
     | { type: 'PLAYER_LEFT'; playerId: PlayerId }
     | { type: 'PLAYER_READY'; playerId: PlayerId }
-    | { type: 'TEAM_CHANGED'; playerId: PlayerId; team: TeamId }
+    | { type: 'SWITCH_REQUEST_UPDATED'; playerId: PlayerId; wantsSwitch: boolean }
+    | { type: 'TEAMS_SWAPPED'; player1Id: PlayerId; player2Id: PlayerId }
     | { type: 'GAME_STATE'; state: PublicGameState }
     | { type: 'PRIVATE_CARDS'; cards: Card[] }
     | { type: 'VAKKAI_DECLARED'; playerId: PlayerId }

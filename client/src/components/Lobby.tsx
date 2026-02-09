@@ -3,11 +3,12 @@
 // ============================================
 
 import { useState } from 'react';
+import type { TeamId } from '../types';
 import './Lobby.css';
 
 interface LobbyProps {
-    onCreateRoom: (playerName: string) => void;
-    onJoinRoom: (roomCode: string, playerName: string) => void;
+    onCreateRoom: (playerName: string, team: TeamId) => void;
+    onJoinRoom: (roomCode: string, playerName: string, team: TeamId) => void;
     isConnected: boolean;
     error: string | null;
 }
@@ -15,17 +16,18 @@ interface LobbyProps {
 export function Lobby({ onCreateRoom, onJoinRoom, isConnected, error }: LobbyProps) {
     const [playerName, setPlayerName] = useState('');
     const [roomCode, setRoomCode] = useState('');
+    const [selectedTeam, setSelectedTeam] = useState<TeamId>('A');
     const [mode, setMode] = useState<'menu' | 'create' | 'join'>('menu');
 
     const handleCreate = () => {
         if (playerName.trim()) {
-            onCreateRoom(playerName.trim());
+            onCreateRoom(playerName.trim(), selectedTeam);
         }
     };
 
     const handleJoin = () => {
         if (playerName.trim() && roomCode.trim()) {
-            onJoinRoom(roomCode.trim().toUpperCase(), playerName.trim());
+            onJoinRoom(roomCode.trim().toUpperCase(), playerName.trim(), selectedTeam);
         }
     };
 
@@ -71,6 +73,25 @@ export function Lobby({ onCreateRoom, onJoinRoom, isConnected, error }: LobbyPro
                             maxLength={20}
                             autoFocus
                         />
+                        
+                        <div className="team-selection">
+                            <label className="team-label">Choose Your Team:</label>
+                            <div className="team-buttons">
+                                <button
+                                    className={`team-btn team-alpha ${selectedTeam === 'A' ? 'selected' : ''}`}
+                                    onClick={() => setSelectedTeam('A')}
+                                >
+                                    Team Alpha
+                                </button>
+                                <button
+                                    className={`team-btn team-bravo ${selectedTeam === 'B' ? 'selected' : ''}`}
+                                    onClick={() => setSelectedTeam('B')}
+                                >
+                                    Team Bravo
+                                </button>
+                            </div>
+                        </div>
+
                         <button
                             className="btn btn-primary"
                             onClick={handleCreate}
@@ -103,6 +124,25 @@ export function Lobby({ onCreateRoom, onJoinRoom, isConnected, error }: LobbyPro
                             onChange={(e) => setRoomCode(e.target.value.toUpperCase())}
                             maxLength={6}
                         />
+                        
+                        <div className="team-selection">
+                            <label className="team-label">Choose Your Team:</label>
+                            <div className="team-buttons">
+                                <button
+                                    className={`team-btn team-alpha ${selectedTeam === 'A' ? 'selected' : ''}`}
+                                    onClick={() => setSelectedTeam('A')}
+                                >
+                                    Team Alpha
+                                </button>
+                                <button
+                                    className={`team-btn team-bravo ${selectedTeam === 'B' ? 'selected' : ''}`}
+                                    onClick={() => setSelectedTeam('B')}
+                                >
+                                    Team Bravo
+                                </button>
+                            </div>
+                        </div>
+
                         <button
                             className="btn btn-primary"
                             onClick={handleJoin}

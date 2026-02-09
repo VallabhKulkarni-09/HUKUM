@@ -32,7 +32,7 @@ export class RoomManager {
     /**
      * Create a new room
      */
-    createRoom(playerName: string, socket: WebSocket): { roomCode: string; playerId: PlayerId; player: Player } | null {
+    createRoom(playerName: string, team: TeamId, socket: WebSocket): { roomCode: string; playerId: PlayerId; player: Player } | null {
         let roomCode = generateRoomCode();
 
         // Ensure unique code
@@ -42,7 +42,7 @@ export class RoomManager {
 
         const engine = createGameEngine();
         const playerId = uuidv4();
-        const player = engine.addPlayer(playerId, playerName);
+        const player = engine.addPlayer(playerId, playerName, team);
 
         if (!player) return null;
 
@@ -57,12 +57,12 @@ export class RoomManager {
     /**
      * Join an existing room
      */
-    joinRoom(roomCode: string, playerName: string, socket: WebSocket): { playerId: PlayerId; player: Player } | null {
+    joinRoom(roomCode: string, playerName: string, team: TeamId, socket: WebSocket): { playerId: PlayerId; player: Player } | null {
         const room = this.rooms.get(roomCode);
         if (!room) return null;
 
         const playerId = uuidv4();
-        const player = room.engine.addPlayer(playerId, playerName);
+        const player = room.engine.addPlayer(playerId, playerName, team);
 
         if (!player) return null;
 

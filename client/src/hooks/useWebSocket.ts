@@ -31,9 +31,9 @@ interface UseWebSocketReturn {
     chatMessages: ChatMessage[];
 
     // Actions
-    createRoom: (playerName: string) => void;
-    joinRoom: (roomCode: string, playerName: string) => void;
-    changeTeam: (team: TeamId) => void;
+    createRoom: (playerName: string, team: TeamId) => void;
+    joinRoom: (roomCode: string, playerName: string, team: TeamId) => void;
+    toggleSwitchRequest: () => void;
     setReady: () => void;
     passVakkai: () => void;
     declareVakkai: () => void;
@@ -180,18 +180,17 @@ export function useWebSocket(): UseWebSocketReturn {
     }, []);
 
     // Actions
-    const createRoom = useCallback((playerName: string) => {
-        console.log('Creating room for:', playerName);
-        send({ type: 'CREATE_ROOM', playerName });
+    const createRoom = useCallback((playerName: string, team: TeamId) => {
+        console.log('Creating room for:', playerName, 'Team:', team);
+        send({ type: 'CREATE_ROOM', playerName, team });
     }, [send]);
 
-    const joinRoom = useCallback((roomCode: string, playerName: string) => {
-        send({ type: 'JOIN_ROOM', roomCode, playerName });
+    const joinRoom = useCallback((roomCode: string, playerName: string, team: TeamId) => {
+        send({ type: 'JOIN_ROOM', roomCode, playerName, team });
     }, [send]);
 
-    const changeTeam = useCallback((team: TeamId) => {
-        console.log('Changing to team:', team);
-        send({ type: 'CHANGE_TEAM', team });
+    const toggleSwitchRequest = useCallback(() => {
+        send({ type: 'TOGGLE_SWITCH_REQUEST' });
     }, [send]);
 
     const setReady = useCallback(() => {
@@ -235,7 +234,7 @@ export function useWebSocket(): UseWebSocketReturn {
         chatMessages,
         createRoom,
         joinRoom,
-        changeTeam,
+        toggleSwitchRequest,
         setReady,
         passVakkai,
         declareVakkai,

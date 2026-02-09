@@ -22,7 +22,7 @@ interface GameTableProps {
     onPlayCard: (cardId: string) => void;
     onSelectDealer: (dealerId: PlayerId) => void;
     onReady: () => void;
-    onChangeTeam: (team: TeamId) => void;
+    onToggleSwitchRequest: () => void;
 }
 
 export function GameTable({
@@ -35,7 +35,7 @@ export function GameTable({
     onChooseHukum,
     onPlayCard,
     onReady,
-    onChangeTeam,
+    onToggleSwitchRequest,
 }: GameTableProps) {
     const tableRef = useRef<HTMLDivElement>(null);
 
@@ -144,6 +144,7 @@ export function GameTable({
                                         <div key={player.id} className="player-row">
                                             <span className="player-number">{idx + 1}.</span>
                                             <span className="player-name">{player.name}</span>
+                                            {player.wantsSwitch && <span className="switch-indicator">🔄</span>}
                                             <span className={`player-status ${player.isReady ? 'ready' : 'not-ready'}`}>
                                                 {player.isReady ? 'READY' : 'NOT READY'}
                                             </span>
@@ -166,6 +167,7 @@ export function GameTable({
                                         <div key={player.id} className="player-row">
                                             <span className="player-number">{idx + 1}.</span>
                                             <span className="player-name">{player.name}</span>
+                                            {player.wantsSwitch && <span className="switch-indicator">🔄</span>}
                                             <span className={`player-status ${player.isReady ? 'ready' : 'not-ready'}`}>
                                                 {player.isReady ? 'READY' : 'NOT READY'}
                                             </span>
@@ -182,13 +184,14 @@ export function GameTable({
                         </div>
 
                         <div className="lobby-actions">
-                            <button
-                                className="action-btn switch-teams-btn"
-                                onClick={() => onChangeTeam(myPlayer?.team === 'A' ? 'B' : 'A')}
-                                disabled={myPlayer?.team === 'A' ? teamBravo.length >= 2 : teamAlpha.length >= 2}
-                            >
-                                Switch Teams
-                            </button>
+                            {gameState.players.length === 4 && (
+                                <button
+                                    className={`action-btn switch-teams-btn ${myPlayer?.wantsSwitch ? 'active' : ''}`}
+                                    onClick={onToggleSwitchRequest}
+                                >
+                                    {myPlayer?.wantsSwitch ? '✓ Switch Requested' : 'Request Team Switch'}
+                                </button>
+                            )}
                             <button
                                 className="action-btn copy-room-btn"
                                 onClick={copyRoomId}
@@ -197,16 +200,28 @@ export function GameTable({
                             </button>
                         </div>
 
-                        <div className="team-instruction">
-                            👥 Choose your team using the "Switch Teams" button above
-                        </div>
+                        {gameState.players.length < 4 && (
+                            <div className="team-instruction">
+                                👥 Waiting for {4 - gameState.players.length} more player(s)...
+                            </div>
+                        )}
+
+                        {gameState.players.length === 4 && teamAlpha.length !== 2 && (
+                            <div className="team-instruction warning">
+                                ⚠️ Teams must be balanced (2v2) to start the game
+                            </div>
+                        )}
 
                         <div className="party-id">
                             Party ID: <strong>{roomCode}</strong>
                         </div>
 
                         {!amIReady ? (
-                            <button className="ready-btn" onClick={onReady}>
+                            <button 
+                                className="ready-btn" 
+                                onClick={onReady}
+                                disabled={teamAlpha.length !== 2 || teamBravo.length !== 2}
+                            >
                                 Ready to Play
                             </button>
                         ) : (

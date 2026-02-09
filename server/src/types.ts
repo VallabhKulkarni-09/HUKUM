@@ -42,6 +42,7 @@ export interface Player {
     hand: Card[];
     isReady: boolean;
     isConnected: boolean;
+    wantsSwitch: boolean; // For team switch requests after 4 players join
 }
 
 // Team A = seats 0, 2 (P1, P3)
@@ -142,9 +143,9 @@ export interface GameState {
 // --- Client -> Server Messages ---
 
 export type ClientMessage =
-    | { type: 'CREATE_ROOM'; playerName: string }
-    | { type: 'JOIN_ROOM'; roomCode: string; playerName: string }
-    | { type: 'CHANGE_TEAM'; team: TeamId }
+    | { type: 'CREATE_ROOM'; playerName: string; team: TeamId }
+    | { type: 'JOIN_ROOM'; roomCode: string; playerName: string; team: TeamId }
+    | { type: 'TOGGLE_SWITCH_REQUEST' }
     | { type: 'READY' }
     | { type: 'PASS_VAKKAI' }
     | { type: 'DECLARE_VAKKAI' }
@@ -161,7 +162,8 @@ export type ServerMessage =
     | { type: 'PLAYER_JOINED'; player: Omit<Player, 'hand'> }
     | { type: 'PLAYER_LEFT'; playerId: PlayerId }
     | { type: 'PLAYER_READY'; playerId: PlayerId }
-    | { type: 'TEAM_CHANGED'; playerId: PlayerId; team: TeamId }
+    | { type: 'SWITCH_REQUEST_UPDATED'; playerId: PlayerId; wantsSwitch: boolean }
+    | { type: 'TEAMS_SWAPPED'; player1Id: PlayerId; player2Id: PlayerId }
     | { type: 'GAME_STATE'; state: PublicGameState }
     | { type: 'PRIVATE_CARDS'; cards: Card[] }
     | { type: 'VAKKAI_DECLARED'; playerId: PlayerId }

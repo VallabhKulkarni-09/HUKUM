@@ -1,0 +1,246 @@
+/* ============================================
+   HUKUM GAME - LOBBY STYLES
+   ============================================ */
+
+.lobby {
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+    padding: 20px;
+}
+
+.lobby-card {
+    background: rgba(255, 255, 255, 0.95);
+    border-radius: 20px;
+    padding: 40px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    max-width: 450px;
+    width: 100%;
+    text-align: center;
+}
+
+.lobby-title {
+    font-size: 3rem;
+    font-weight: 800;
+    color: #1a1a2e;
+    margin: 0 0 10px 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 15px;
+}
+
+.lobby-title .suit {
+    font-size: 2.5rem;
+}
+
+.lobby-title .spade,
+.lobby-title .club {
+    color: #1a1a2e;
+}
+
+.lobby-title .heart,
+.lobby-title .diamond {
+    color: #e63946;
+}
+
+.lobby-subtitle {
+    font-size: 1rem;
+    color: #666;
+    margin: 0 0 30px 0;
+}
+
+.connection-status {
+    padding: 12px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+    font-weight: 600;
+}
+
+.connection-status.connecting {
+    background: #fff3cd;
+    color: #856404;
+}
+
+.error-message {
+    background: #f8d7da;
+    color: #721c24;
+    padding: 12px;
+    border-radius: 8px;
+    margin-bottom: 20px;
+    font-weight: 500;
+}
+
+.menu-buttons {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.form-container {
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.input {
+    padding: 14px 18px;
+    border: 2px solid #ddd;
+    border-radius: 10px;
+    font-size: 1rem;
+    transition: all 0.3s ease;
+    font-family: inherit;
+}
+
+.input:focus {
+    outline: none;
+    border-color: #4a90e2;
+    box-shadow: 0 0 0 3px rgba(74, 144, 226, 0.1);
+}
+
+.room-code-input {
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    font-weight: 600;
+    text-align: center;
+}
+
+.team-selection {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin: 10px 0;
+}
+
+.team-label {
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: #333;
+    text-align: left;
+}
+
+.team-buttons {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+}
+
+.team-btn {
+    padding: 14px 20px;
+    border: 3px solid transparent;
+    border-radius: 10px;
+    font-size: 1rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-family: inherit;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.team-btn.team-alpha {
+    background: linear-gradient(135deg, #4a90e2 0%, #357abd 100%);
+    color: white;
+}
+
+.team-btn.team-alpha:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(74, 144, 226, 0.4);
+}
+
+.team-btn.team-alpha.selected {
+    border-color: #1a5490;
+    box-shadow: 0 0 0 3px rgba(74, 144, 226, 0.3);
+    transform: scale(1.05);
+}
+
+.team-btn.team-bravo {
+    background: linear-gradient(135deg, #e63946 0%, #c92a35 100%);
+    color: white;
+}
+
+.team-btn.team-bravo:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(230, 57, 70, 0.4);
+}
+
+.team-btn.team-bravo.selected {
+    border-color: #a01f2a;
+    box-shadow: 0 0 0 3px rgba(230, 57, 70, 0.3);
+    transform: scale(1.05);
+}
+
+.btn {
+    padding: 14px 28px;
+    border: none;
+    border-radius: 10px;
+    font-size: 1.1rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    font-family: inherit;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.btn-primary {
+    background: linear-gradient(135deg, #4a90e2 0%, #357abd 100%);
+    color: white;
+}
+
+.btn-primary:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(74, 144, 226, 0.4);
+}
+
+.btn-secondary {
+    background: linear-gradient(135deg, #6c757d 0%, #545b62 100%);
+    color: white;
+}
+
+.btn-secondary:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(108, 117, 125, 0.4);
+}
+
+.btn-back {
+    background: transparent;
+    color: #666;
+    border: 2px solid #ddd;
+}
+
+.btn-back:hover {
+    background: #f8f9fa;
+    border-color: #adb5bd;
+}
+
+.lobby-footer {
+    margin-top: 30px;
+    padding-top: 20px;
+    border-top: 2px solid #eee;
+    color: #666;
+    font-size: 0.95rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+}
+
+.lobby-footer .suit {
+    font-size: 1.2rem;
+}
+
+.lobby-footer .diamond {
+    color: #e63946;
+}
+
+.lobby-footer .club {
+    color: #1a1a2e;
+}
