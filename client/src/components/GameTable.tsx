@@ -4,7 +4,7 @@
 
 import { useRef, useEffect } from 'react';
 import gsap from 'gsap';
-import type { PublicGameState, Card as CardType, PlayerId, TeamId } from '../types';
+import type { PublicGameState, Card as CardType, PlayerId } from '../types';
 import { SUIT_SYMBOLS } from '../types';
 import { Card } from './Card';
 import { PlayerHand } from './PlayerHand';

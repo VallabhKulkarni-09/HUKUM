@@ -197,5 +197,8 @@ export interface PublicGameState {
         cardCount: number;
         isReady: boolean;
         isConnected: boolean;
+        wantsSwitch: boolean;
     }>;
+    dealerTeam: TeamId | null;
+    trumpTeam: TeamId | null;
 }

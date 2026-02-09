@@ -749,6 +749,8 @@ export class GameEngine {
                 isConnected: p.isConnected,
                 wantsSwitch: p.wantsSwitch,
             })),
+            dealerTeam: this.gameState.dealerTeam,
+            trumpTeam: this.gameState.trumpTeam,
         };
     }
 

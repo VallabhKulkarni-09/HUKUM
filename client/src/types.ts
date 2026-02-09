@@ -73,6 +73,8 @@ export interface PublicGameState {
     trickCounts: Record<TeamId, number>;
     score: Score;
     players: PublicPlayer[];
+    dealerTeam: TeamId | null;
+    trumpTeam: TeamId | null;
 }
 
 // Server messages
