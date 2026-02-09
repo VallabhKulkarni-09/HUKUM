@@ -627,7 +627,38 @@ export class GameEngine {
     }
 
     /**
-     * Select dealer for next hand
+     * Automatically select dealer from the dealer-choosing team
+     */
+    autoSelectDealer(): boolean {
+        if (this.gameState.phase !== 'HAND_END' && this.gameState.phase !== 'DEALER_SELECTION') return false;
+
+        const choosingTeam = getDealerChoosingTeam(this.gameState.score);
+        
+        // Find first player from the choosing team (by seat order)
+        const players = [...this.players.values()]
+            .filter(p => p.team === choosingTeam)
+            .sort((a, b) => a.seat - b.seat);
+
+        if (players.length === 0) return false;
+
+        const dealer = players[0];
+        this.gameState.dealerId = dealer.id;
+
+        // Set trump chooser
+        const trumpChooserSeat = ((dealer.seat + 1) % 4) as SeatPosition;
+        const trumpChooser = this.getPlayerBySeat(trumpChooserSeat);
+        this.gameState.trumpChooserId = trumpChooser!.id;
+
+        console.log(`🎴 Auto-selected dealer: ${dealer.name} (Team ${choosingTeam})`);
+
+        // Reset for new hand
+        this.resetForNewHand();
+
+        return true;
+    }
+
+    /**
+     * Select dealer for next hand (manual selection - kept for compatibility)
      */
     selectDealer(dealerId: PlayerId): boolean {
         if (this.gameState.phase !== 'HAND_END' && this.gameState.phase !== 'DEALER_SELECTION') return false;

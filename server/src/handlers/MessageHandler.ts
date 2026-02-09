@@ -365,13 +365,25 @@ function handlePlayCard(socket: WebSocket, cardId: string, roomManager: RoomMana
             reason: 'Hand completed',
         });
 
-        // Wait 2 seconds before transitioning to dealer selection
+        // Wait 2 seconds before auto-selecting dealer and starting next hand
         setTimeout(() => {
             const currentRoom = roomManager.getRoom(roomCode);
             if (currentRoom && currentRoom.engine.getPhase() === 'HAND_END') {
-                // Transition to dealer selection
+                console.log(`🎲 Auto-selecting dealer for next hand in room ${roomCode}`);
+                
+                // Transition to dealer selection phase
                 currentRoom.engine.transitionToDealerSelection();
-                broadcastGameState(roomCode, roomManager);
+                
+                // Automatically select dealer from negative team
+                if (currentRoom.engine.autoSelectDealer()) {
+                    console.log(`✅ Dealer auto-selected, starting next hand`);
+                    
+                    // Broadcast updated game state and send new cards
+                    sendPrivateCards(roomCode, roomManager);
+                    broadcastGameState(roomCode, roomManager);
+                } else {
+                    console.error(`❌ Failed to auto-select dealer in room ${roomCode}`);
+                }
             }
         }, 2000);
     } else if (gameState.phase === 'MATCH_END') {
