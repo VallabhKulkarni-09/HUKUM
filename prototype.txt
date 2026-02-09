@@ -1,0 +1,267 @@
+You are creating a **prototype version** of a multiplayer card game called **Hukum (Court Piece / Rang)**.
+
+This prototype is NOT production.
+Goal: verify gameplay correctness, turn order, scoring, and multiplayer synchronization.
+
+Do NOT optimize visuals.
+Do NOT add authentication, database persistence, animations, or scaling.
+
+Focus only on:
+
+* correctness
+* deterministic rules
+* reproducible gameplay
+* debuggability
+
+Assume the reader has ZERO knowledge of this game.
+
+---
+
+# 1. PROTOTYPE TECH CONSTRAINTS
+
+Use the simplest working stack:
+
+Frontend:
+React + TypeScript
+HTML elements for cards (no PIXI yet)
+Minimal CSS
+
+Backend:
+Node.js + TypeScript
+Native WebSocket
+In-memory state (no Redis / DB)
+
+Everything runs locally.
+
+No login.
+Players join via room code + nickname only.
+
+---
+
+# 2. WHAT THE GAME IS (CONCEPT)
+
+Hukum is a 4-player partnership trick-taking card game.
+
+Players sit around a table:
+
+P1 → P2 → P3 → P4 → back to P1
+
+Teams:
+Team A = P1 + P3
+Team B = P2 + P4
+
+The game is not about collecting points from cards.
+Instead, each hand awards match points depending on who controlled the round.
+
+The match continues across many hands until a team reaches +16 or −16.
+
+Score is always zero-sum:
+If Team A gains points, Team B loses the same amount.
+
+---
+
+# 3. THE DECK
+
+Use 32 cards only:
+
+Ranks (strongest to weakest):
+A K Q J 10 9 8 7
+
+Suits:
+Spade, Heart, Diamond, Club
+
+Each player always holds exactly 8 cards in a normal hand.
+
+---
+
+# 4. BASIC IDEA OF A HAND
+
+Each hand has 3 stages:
+
+1. Partial deal
+2. Risk decision (Vakkai or choose trump)
+3. Trick playing
+
+Important:
+The first 4 cards exist ONLY for decision making.
+
+---
+
+# 5. DEALING
+
+One player is the dealer.
+
+Dealer gives 4 cards to each player clockwise.
+
+Now the decision phase begins.
+
+---
+
+# 6. VAKKAI (HIGH RISK DECLARATION)
+
+Any player may declare Vakkai after seeing their first 4 cards.
+
+What it means:
+"I believe I can win 4 tricks in a row alone without trump."
+
+Rules:
+
+* Declarer plays alone
+* Their partner skips turns
+* No trump suit exists
+* Must win 4 consecutive tricks
+
+Scoring:
+Success → +8 to their team
+Failure → −16 to their team
+
+After applying score, check if score crosses ±16 → if yes match ends.
+
+Hand ends immediately after success or first lost trick.
+
+If no one declares Vakkai → continue.
+
+---
+
+# 7. CHOOSING TRUMP (HUKUM)
+
+The player next to the dealer chooses a suit as trump using only their first 4 cards.
+
+After trump selection:
+Dealer gives remaining 4 cards to each player.
+
+Now every player has 8 cards.
+
+---
+
+# 8. TRICK PLAY RULES
+
+The player next to the trump chooser plays the first card.
+
+Players must follow suit if they have it.
+
+If they do not have that suit:
+they may play any card including trump.
+
+Winning a trick:
+Highest card of the led suit wins unless any trump is played.
+If trump played → highest trump wins.
+
+Winner of trick leads next trick.
+
+---
+
+# 9. HAND WIN CONDITIONS
+
+Two sides exist:
+
+Trump-declaring team → must win 5 tricks → +5 points
+Dealer team → must win 4 tricks → +10 points
+
+The hand ends immediately once either target is reached.
+Do not play remaining cards.
+
+---
+
+# 10. MATCH SCORE
+
+Score starts at:
+A = 0
+B = 0
+
+Always zero-sum.
+
+Match ends when a team reaches +16 or −16.
+
+---
+
+# 11. DEALER ROTATION
+
+After a hand finishes:
+
+The team currently having negative score chooses which partner becomes dealer.
+
+This is critical — do not auto-rotate clockwise.
+
+---
+
+# 12. MULTIPLAYER REQUIREMENTS
+
+Room system:
+
+* Create room
+* Join room
+* Max 4 players
+* Fixed seating order
+
+Game only starts when 4 players press READY.
+
+Server stores:
+room state
+players
+hands
+turn index
+score
+current phase
+
+Server is the single source of truth.
+
+Clients only send intentions:
+play_card
+pass
+declare_vakkai
+choose_trump
+
+Server validates everything.
+
+---
+
+# 13. REQUIRED STATES (FINITE STATE MACHINE)
+
+WAITING_FOR_PLAYERS
+READY_CHECK
+DEALING_FIRST
+VAKKAI_DECISION
+TRUMP_SELECTION
+DEALING_SECOND
+TRICK_PLAY
+HAND_END
+MATCH_END
+
+Never skip states.
+
+---
+
+# 14. DEBUGGING TOOLS (MANDATORY)
+
+Add a developer panel showing:
+
+* player hands
+* current turn
+* current trump
+* trick count
+* score
+* active phase
+
+Without this debugging UI the prototype is unusable.
+
+---
+
+# 15. TEST SCENARIOS YOU MUST VERIFY
+
+1. Vakkai success gives +8
+2. Vakkai failure subtracts 16 but does not end match unless ±16 reached
+3. Trump team wins at exactly 5 tricks
+4. Dealer team wins at exactly 4 tricks
+5. Hand stops immediately on victory
+6. Negative team chooses dealer next hand
+7. Players cannot play out of turn
+8. Players must follow suit
+
+---
+
+Build the backend game engine first.
+Then minimal frontend to interact with it.
+
+Do not implement graphics or animations yet.
+Correct rules are the only priority.

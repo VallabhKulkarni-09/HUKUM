@@ -1,0 +1,114 @@
+.action-buttons {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(0, 0, 0, 0.9);
+    backdrop-filter: blur(20px);
+    padding: 32px;
+    border-radius: 20px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    text-align: center;
+    z-index: 100;
+    min-width: 300px;
+}
+
+.action-buttons h3 {
+    color: #fff;
+    margin: 0 0 8px 0;
+    font-size: 1.3rem;
+}
+
+.action-buttons p {
+    color: rgba(255, 255, 255, 0.6);
+    margin: 0 0 24px 0;
+    font-size: 0.9rem;
+}
+
+.button-group {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+}
+
+.action-btn {
+    padding: 14px 28px;
+    border-radius: 12px;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    border: none;
+    transition: all 0.3s ease;
+}
+
+.action-btn.danger {
+    background: linear-gradient(135deg, #e63946 0%, #c62828 100%);
+    color: #fff;
+}
+
+.action-btn.danger:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 25px rgba(230, 57, 70, 0.4);
+}
+
+.action-btn.secondary {
+    background: rgba(255, 255, 255, 0.1);
+    color: #fff;
+    border: 2px solid rgba(255, 255, 255, 0.2);
+}
+
+.action-btn.secondary:hover {
+    background: rgba(255, 255, 255, 0.15);
+}
+
+/* Suit buttons */
+.suit-buttons {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+}
+
+.suit-btn {
+    padding: 20px 24px;
+    border-radius: 12px;
+    font-size: 1.2rem;
+    font-weight: 600;
+    cursor: pointer;
+    border: 2px solid transparent;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+
+.suit-btn.spade,
+.suit-btn.club {
+    background: rgba(26, 26, 46, 0.8);
+    color: #4a9eff;
+    border-color: #4a9eff;
+}
+
+.suit-btn.heart,
+.suit-btn.diamond {
+    background: rgba(230, 57, 70, 0.2);
+    color: #ff6b6b;
+    border-color: #ff6b6b;
+}
+
+.suit-btn:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+}
+
+.suit-btn.spade:hover,
+.suit-btn.club:hover {
+    background: #4a9eff;
+    color: #fff;
+}
+
+.suit-btn.heart:hover,
+.suit-btn.diamond:hover {
+    background: #e63946;
+    color: #fff;
+}

@@ -1,0 +1,246 @@
+You are building a real-time multiplayer web game called **Hukum (Court Piece / Rang)**.
+
+Follow this specification exactly.
+Do not invent rules.
+If a situation is undefined, pause and request clarification.
+
+The server is authoritative.
+Clients render visuals and send intentions only.
+
+---
+
+# 1. TECH STACK
+
+| Layer       | Tech                |
+| ----------- | ------------------- |
+| UI          | React + TypeScript  |
+| Rendering   | PIXI.js             |
+| Animations  | GSAP                |
+| Audio       | Web Audio API       |
+| Networking  | Native WebSockets   |
+| Backend     | Node.js TS or Rust  |
+| Game Engine | Authoritative       |
+| Cache       | Redis               |
+| DB          | PostgreSQL          |
+| Auth        | Auth0 / OAuth       |
+| Infra       | Docker + Kubernetes |
+| CDN         | Cloudflare          |
+| Monitoring  | Prometheus, Sentry  |
+
+All gameplay logic executes on backend only.
+
+---
+
+# 2. ROOM SYSTEM
+
+Room code: 6 uppercase letters
+Max players: 4
+Seats assigned clockwise: P1, P2, P3, P4
+Teams: (P1,P3) vs (P2,P4)
+
+Room states:
+WAITING → READY → PLAYING → FINISHED
+
+Reconnect:
+Player can reclaim seat within 60 seconds using session token.
+If a player disconnects mid-hand → pause game.
+
+---
+
+# 3. CARD SYSTEM
+
+Deck: 32 cards
+
+Ranks (high → low):
+A K Q J 10 9 8 7
+
+Suits:
+SPADE HEART DIAMOND CLUB
+
+Shuffle: deterministic seeded Fisher–Yates (server side only)
+
+---
+
+# 4. MATCH STRUCTURE
+
+Zero-sum score.
+
+Start:
+A = 0
+B = 0
+
+Goal:
+Reach +16 OR opponent reaches −16
+
+---
+
+# 5. DEALER RULE
+
+Initial dealer → random toss.
+
+After each hand:
+Team with negative score chooses which partner becomes dealer.
+
+---
+
+# 6. DEAL PHASE
+
+1. Dealer distributes 4 cards each (clockwise)
+
+→ VAKKAI PHASE
+
+If nobody declares Vakkai:
+Player next to dealer chooses HUKUM (trump) using only first 4 cards.
+
+2. Dealer distributes remaining 4 cards each (total 8)
+
+---
+
+# 7. VAKKAI RULE
+
+Any player may declare after first deal before trump selection.
+
+Effects:
+
+* No trump exists
+* Declarer plays alone
+* Partner inactive
+* Must win 4 consecutive tricks
+
+Scoring:
+Success → +8 declarer team
+Fail → −16 declarer team (+16 opponents)
+
+Hand stops immediately after success or first lost trick.
+
+Important:
+Match ends ONLY if score crosses ±16 after applying points.
+
+---
+
+# 8. NORMAL PLAY
+
+First lead → player next to trump chooser
+
+Rules:
+
+* Must follow suit if possible
+* If void → may play trump
+* Highest lead suit wins unless trumped
+* Highest trump wins otherwise
+
+---
+
+# 9. TRICK TARGETS
+
+Hukum team → 5 tricks → +5
+Dealer team → 4 tricks → +10
+
+Stop the hand immediately once a team reaches required tricks.
+Do NOT continue remaining tricks.
+
+---
+
+# 10. SCORING
+
+Zero-sum always:
+
+A += X
+B -= X
+
+Match ends when:
+A ≥ +16 OR A ≤ −16
+
+---
+
+# 11. GAME STATE MACHINE
+
+LOBBY
+DEALING_FIRST
+VAKKAI_DECISION
+HUKUM_SELECTION
+DEALING_SECOND
+TRICK_PLAY
+HAND_END
+MATCH_END
+
+Server validates every action:
+
+* correct player turn
+* card ownership
+* follow suit enforcement
+
+Reject invalid actions.
+
+---
+
+# 12. CLIENT UI
+
+Render table using PIXI.js
+Animate using GSAP
+
+Display:
+
+* Seats
+* Trump indicator
+* Dealer marker
+* Turn highlight
+* Trick pile
+* Scoreboard
+
+Buttons:
+Pass
+Declare Vakkai
+Choose Suit
+Play Card
+
+Client validation allowed but server is source of truth.
+
+---
+
+# 13. NETWORK EVENTS
+
+Client → Server:
+join_room
+create_room
+ready
+declare_vakkai
+pass_vakkai
+choose_hukum
+play_card
+disconnect
+
+Server → Client:
+room_state
+game_state
+private_cards
+card_played
+trick_winner
+score_update
+hand_end
+match_end
+invalid_action
+
+---
+
+# 14. EDGE RULES
+
+* Stop hand as soon as outcome decided
+* No automatic assumptions
+* Server controls all rules
+
+---
+
+# 15. REQUIRED TEST CASES
+
+1. Vakkai success → +8
+2. Vakkai fail → apply −16, end match only if score crosses ±16
+3. Hukum win → +5
+4. Hukum loss → opponent +10
+5. Dealer chosen by negative team
+6. Reconnect pauses hand
+7. Illegal card rejected
+8. Hand stops immediately after required trick count
+
+Implement backend engine first.
+Then implement rendering client.
