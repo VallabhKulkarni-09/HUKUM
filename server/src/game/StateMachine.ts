@@ -19,7 +19,7 @@ const VALID_TRANSITIONS: Record<GamePhase, GamePhase[]> = {
     'VAKKAI_PLAY': ['VAKKAI_PLAY', 'HAND_END', 'MATCH_END'],
     'HAND_END': ['DEALER_SELECTION', 'MATCH_END'],
     'DEALER_SELECTION': ['DEALING_FIRST'],
-    'MATCH_END': [],
+    'MATCH_END': ['READY_CHECK'],
 };
 
 /**

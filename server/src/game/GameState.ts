@@ -21,6 +21,7 @@ import { StateMachine, createStateMachine } from './StateMachine.js';
 import { createTrickState, addCardToTrick, calculateTrickWinner, isTrickComplete, getTrickTurnOrder } from './TrickLogic.js';
 import { createScore, applyScore, checkHandWinner, calculateVakkaiResult, isMatchEnd, getDealerChoosingTeam, getOppositeTeam, SCORING } from './Scoring.js';
 import { createDeck, shuffleDeck, dealCards, drawTossCards, calculateTossPoints } from './Deck.js';
+import { getCardValue } from './Card.js';
 
 /**
  * Full game engine class
@@ -322,6 +323,9 @@ export class GameEngine {
             player.hand = hands[index];
         });
 
+        // Sort all player hands
+        this.sortAllHands();
+
         // Transition to Vakkai decision
         this.stateMachine.transitionTo('VAKKAI_DECISION');
         this.gameState.phase = 'VAKKAI_DECISION';
@@ -444,6 +448,9 @@ export class GameEngine {
         players.forEach((player, index) => {
             player.hand = [...player.hand, ...hands[index]];
         });
+
+        // Sort all player hands
+        this.sortAllHands();
 
         this.remainingDeck = [];
     }
@@ -633,7 +640,7 @@ export class GameEngine {
         if (this.gameState.phase !== 'HAND_END' && this.gameState.phase !== 'DEALER_SELECTION') return false;
 
         const choosingTeam = getDealerChoosingTeam(this.gameState.score);
-        
+
         // Find first player from the choosing team (by seat order)
         const players = [...this.players.values()]
             .filter(p => p.team === choosingTeam)
@@ -702,9 +709,24 @@ export class GameEngine {
             player.hand = [];
         }
 
-        // Go to dealing
-        this.stateMachine.forcePhase('DEALING_FIRST');
+        // Go to dealing — use DEALER_SELECTION so dealFirstHalf can transition to DEALING_FIRST
+        this.stateMachine.forcePhase('DEALER_SELECTION');
         this.dealFirstHalf();
+    }
+
+    /**
+     * Sort cards in a hand by suit order (SPADE, HEART, DIAMOND, CLUB) then by rank (high to low)
+     */
+    private sortAllHands(): void {
+        const SUIT_ORDER: Record<string, number> = { 'SPADE': 0, 'HEART': 1, 'DIAMOND': 2, 'CLUB': 3 };
+
+        for (const player of this.players.values()) {
+            player.hand.sort((a, b) => {
+                const suitDiff = SUIT_ORDER[a.suit] - SUIT_ORDER[b.suit];
+                if (suitDiff !== 0) return suitDiff;
+                return getCardValue(b) - getCardValue(a); // High rank first
+            });
+        }
     }
 
     // ============================================

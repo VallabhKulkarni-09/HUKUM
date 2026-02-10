@@ -1,25 +1,55 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&display=swap');
+
 * {
   margin: 0;
   padding: 0;
   box-sizing: border-box;
 }
 
+:root {
+  /* Colors */
+  --primary: #4a9eff;
+  --danger: #e63946;
+  --success: #4caf50;
+  --gold: #ffd700;
+  --bg-dark: #0d1117;
+  --bg-medium: #161b22;
+  --bg-light: #21262d;
+
+  /* Card sizes */
+  --card-w: 80px;
+  --card-h: 112px;
+  --card-w-trick: 70px;
+  --card-h-trick: 98px;
+
+  /* Table */
+  --table-w: 360px;
+  --table-h: 240px;
+
+  /* Spacing */
+  --hand-overlap: -30px;
+}
+
 body {
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
-  background: #1a1a2e;
+  font-family: 'Outfit', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: var(--bg-dark);
   color: #fff;
   overflow-x: hidden;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
 }
 
-:root {
-  --primary: #4a9eff;
-  --danger: #e63946;
-  --success: #4caf50;
-  --bg-dark: #1a1a2e;
-  --bg-medium: #16213e;
-  --bg-light: #0f3460;
+/* Mobile overrides */
+@media (max-width: 768px) {
+  :root {
+    --card-w: 56px;
+    --card-h: 78px;
+    --card-w-trick: 50px;
+    --card-h-trick: 70px;
+    --table-w: 220px;
+    --table-h: 150px;
+    --hand-overlap: -36px;
+  }
 }
 
 /* Custom scrollbar */
@@ -36,11 +66,6 @@ body {
   border-radius: 3px;
 }
 
-::-webkit-scrollbar-thumb:hover {
-  background: rgba(255, 255, 255, 0.3);
-}
-
-/* Selection */
 ::selection {
   background: var(--primary);
   color: #fff;

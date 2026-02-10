@@ -1,77 +1,98 @@
+/* ============================================
+   ACTION BUTTONS — Vakkai / Hukum choices
+   ============================================ */
+
 .action-buttons {
     position: fixed;
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    background: rgba(0, 0, 0, 0.9);
+    background: rgba(0, 0, 0, 0.92);
     backdrop-filter: blur(20px);
-    padding: 32px;
-    border-radius: 20px;
-    border: 1px solid rgba(255, 255, 255, 0.2);
+    padding: 28px;
+    border-radius: 18px;
+    border: 1px solid rgba(255, 255, 255, 0.1);
     text-align: center;
     z-index: 100;
-    min-width: 300px;
+    min-width: 280px;
+    box-shadow: 0 16px 48px rgba(0, 0, 0, 0.5);
+    animation: modalIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+@keyframes modalIn {
+    from {
+        opacity: 0;
+        transform: translate(-50%, -50%) scale(0.9);
+    }
+
+    to {
+        opacity: 1;
+        transform: translate(-50%, -50%) scale(1);
+    }
 }
 
 .action-buttons h3 {
     color: #fff;
-    margin: 0 0 8px 0;
-    font-size: 1.3rem;
+    margin: 0 0 6px 0;
+    font-size: 1.2rem;
+    font-weight: 700;
 }
 
 .action-buttons p {
-    color: rgba(255, 255, 255, 0.6);
-    margin: 0 0 24px 0;
-    font-size: 0.9rem;
+    color: rgba(255, 255, 255, 0.5);
+    margin: 0 0 20px 0;
+    font-size: 0.85rem;
 }
 
 .button-group {
     display: flex;
-    gap: 12px;
+    gap: 10px;
     justify-content: center;
 }
 
 .action-btn {
-    padding: 14px 28px;
-    border-radius: 12px;
-    font-size: 1rem;
+    padding: 12px 24px;
+    border-radius: 10px;
+    font-size: 0.95rem;
     font-weight: 600;
     cursor: pointer;
     border: none;
     transition: all 0.3s ease;
+    font-family: inherit;
 }
 
 .action-btn.danger {
-    background: linear-gradient(135deg, #e63946 0%, #c62828 100%);
+    background: linear-gradient(135deg, #e63946, #b71c1c);
     color: #fff;
+    box-shadow: 0 4px 16px rgba(230, 57, 70, 0.3);
 }
 
 .action-btn.danger:hover {
     transform: translateY(-2px);
-    box-shadow: 0 10px 25px rgba(230, 57, 70, 0.4);
+    box-shadow: 0 8px 24px rgba(230, 57, 70, 0.45);
 }
 
 .action-btn.secondary {
-    background: rgba(255, 255, 255, 0.1);
+    background: rgba(255, 255, 255, 0.08);
     color: #fff;
-    border: 2px solid rgba(255, 255, 255, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.15);
 }
 
 .action-btn.secondary:hover {
-    background: rgba(255, 255, 255, 0.15);
+    background: rgba(255, 255, 255, 0.14);
 }
 
 /* Suit buttons */
 .suit-buttons {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 12px;
+    gap: 10px;
 }
 
 .suit-btn {
-    padding: 20px 24px;
-    border-radius: 12px;
-    font-size: 1.2rem;
+    padding: 16px 20px;
+    border-radius: 10px;
+    font-size: 1.1rem;
     font-weight: 600;
     cursor: pointer;
     border: 2px solid transparent;
@@ -79,36 +100,75 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 8px;
+    gap: 6px;
+    font-family: inherit;
 }
 
 .suit-btn.spade,
 .suit-btn.club {
     background: rgba(26, 26, 46, 0.8);
-    color: #4a9eff;
-    border-color: #4a9eff;
+    color: #6db3f8;
+    border-color: rgba(74, 158, 255, 0.3);
 }
 
 .suit-btn.heart,
 .suit-btn.diamond {
-    background: rgba(230, 57, 70, 0.2);
-    color: #ff6b6b;
-    border-color: #ff6b6b;
+    background: rgba(230, 57, 70, 0.15);
+    color: #ff7b7b;
+    border-color: rgba(255, 107, 107, 0.3);
 }
 
 .suit-btn:hover {
-    transform: translateY(-3px);
-    box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+    transform: translateY(-3px) scale(1.02);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.3);
 }
 
 .suit-btn.spade:hover,
 .suit-btn.club:hover {
     background: #4a9eff;
     color: #fff;
+    border-color: #4a9eff;
 }
 
 .suit-btn.heart:hover,
 .suit-btn.diamond:hover {
     background: #e63946;
     color: #fff;
+    border-color: #e63946;
+}
+
+/* Mobile */
+@media (max-width: 768px) {
+    .action-buttons {
+        min-width: auto;
+        width: 88vw;
+        padding: 20px;
+    }
+
+    .action-buttons h3 {
+        font-size: 1.05rem;
+    }
+
+    .action-buttons p {
+        font-size: 0.78rem;
+    }
+
+    .suit-buttons {
+        grid-template-columns: 1fr 1fr;
+        gap: 8px;
+    }
+
+    .suit-btn {
+        padding: 14px 12px;
+        font-size: 0.95rem;
+    }
+
+    .button-group {
+        gap: 8px;
+    }
+
+    .action-btn {
+        padding: 10px 18px;
+        font-size: 0.85rem;
+    }
 }

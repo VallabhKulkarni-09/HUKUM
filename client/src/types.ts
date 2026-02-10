@@ -98,7 +98,8 @@ export type ServerMessage =
     | { type: 'DEALER_SELECTION_REQUIRED'; team: TeamId; options: PlayerId[] }
     | { type: 'CHAT_MESSAGE'; playerId: PlayerId; playerName: string; text: string }
     | { type: 'ERROR'; message: string }
-    | { type: 'TOSS_RESULT'; cards: Record<PlayerId, Card>; dealerTeam: TeamId; trumpTeam: TeamId };
+    | { type: 'TOSS_RESULT'; cards: Record<PlayerId, Card>; dealerTeam: TeamId; trumpTeam: TeamId }
+    | { type: 'GO_HOME' };
 
 // Suit symbols for display
 export const SUIT_SYMBOLS: Record<Suit, string> = {

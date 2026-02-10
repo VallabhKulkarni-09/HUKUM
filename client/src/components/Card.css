@@ -1,12 +1,19 @@
+/* ============================================
+   CARD STYLES — Premium playing card
+   ============================================ */
+
 .card {
-    width: 80px;
-    height: 112px;
+    width: var(--card-w);
+    height: var(--card-h);
     border-radius: 8px;
-    background: linear-gradient(145deg, #ffffff 0%, #f5f5f5 100%);
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2), 0 1px 3px rgba(0, 0, 0, 0.1);
+    background: linear-gradient(145deg, #fff 0%, #f0f0f0 50%, #e8e8e8 100%);
+    box-shadow:
+        0 2px 8px rgba(0, 0, 0, 0.2),
+        0 1px 2px rgba(0, 0, 0, 0.15),
+        inset 0 1px 0 rgba(255, 255, 255, 0.8);
     cursor: default;
     user-select: none;
-    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.25s ease;
     position: relative;
     flex-shrink: 0;
 }
@@ -16,24 +23,31 @@
 }
 
 .card.playable:hover {
-    transform: translateY(-10px);
-    box-shadow: 0 15px 30px rgba(0, 0, 0, 0.3), 0 5px 15px rgba(0, 0, 0, 0.2);
+    transform: translateY(-14px) scale(1.05);
+    box-shadow:
+        0 16px 32px rgba(0, 0, 0, 0.35),
+        0 0 0 2px rgba(74, 158, 255, 0.4),
+        0 0 20px rgba(74, 158, 255, 0.15);
+    z-index: 10;
 }
 
 .card.selected {
-    transform: translateY(-20px);
-    box-shadow: 0 20px 40px rgba(74, 158, 255, 0.4), 0 0 0 3px #4a9eff;
+    transform: translateY(-22px) scale(1.08);
+    box-shadow:
+        0 22px 44px rgba(74, 158, 255, 0.35),
+        0 0 0 3px #4a9eff,
+        0 0 30px rgba(74, 158, 255, 0.2);
 }
 
 .card.in-trick {
-    width: 70px;
-    height: 98px;
+    width: var(--card-w-trick);
+    height: var(--card-h-trick);
 }
 
 .card-inner {
     width: 100%;
     height: 100%;
-    padding: 6px;
+    padding: 5px;
     box-sizing: border-box;
     display: flex;
     flex-direction: column;
@@ -58,12 +72,12 @@
 }
 
 .card-rank {
-    font-size: 1rem;
-    font-weight: 700;
+    font-size: 0.85rem;
+    font-weight: 800;
 }
 
 .card-suit {
-    font-size: 0.9rem;
+    font-size: 0.75rem;
 }
 
 .card-center {
@@ -74,7 +88,7 @@
 }
 
 .card-symbol {
-    font-size: 2rem;
+    font-size: 1.6rem;
 }
 
 .black {
@@ -82,13 +96,13 @@
 }
 
 .red {
-    color: #e63946;
+    color: #d32f2f;
 }
 
 /* Card back */
 .card-back {
-    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
-    border: 3px solid #0f3460;
+    background: linear-gradient(135deg, #1a237e 0%, #0d1b42 40%, #1a237e 100%);
+    border: 2px solid rgba(74, 158, 255, 0.2);
 }
 
 .card-back-pattern {
@@ -98,7 +112,30 @@
     grid-template-columns: 1fr 1fr;
     grid-template-rows: 1fr 1fr;
     place-items: center;
-    opacity: 0.3;
-    font-size: 1.5rem;
+    opacity: 0.25;
+    font-size: 1.3rem;
     color: #4a9eff;
+}
+
+/* Mobile */
+@media (max-width: 768px) {
+    .card-rank {
+        font-size: 0.7rem;
+    }
+
+    .card-suit {
+        font-size: 0.6rem;
+    }
+
+    .card-symbol {
+        font-size: 1.2rem;
+    }
+
+    .card-inner {
+        padding: 3px;
+    }
+
+    .card-back-pattern {
+        font-size: 0.9rem;
+    }
 }

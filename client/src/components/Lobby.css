@@ -4,36 +4,38 @@
 
 .lobby {
     min-height: 100vh;
+    min-height: 100dvh;
     display: flex;
     align-items: center;
     justify-content: center;
-    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+    background: radial-gradient(ellipse at 50% 30%, #162016 0%, #0d1a0d 50%, #0a0f0a 100%);
     padding: 20px;
 }
 
 .lobby-card {
-    background: rgba(255, 255, 255, 0.95);
+    background: rgba(255, 255, 255, 0.96);
     border-radius: 20px;
-    padding: 40px;
-    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-    max-width: 450px;
+    padding: 36px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.1);
+    max-width: 420px;
     width: 100%;
     text-align: center;
 }
 
 .lobby-title {
-    font-size: 3rem;
+    font-size: 2.6rem;
     font-weight: 800;
     color: #1a1a2e;
-    margin: 0 0 10px 0;
+    margin: 0 0 8px 0;
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 15px;
+    gap: 12px;
+    letter-spacing: -0.5px;
 }
 
 .lobby-title .suit {
-    font-size: 2.5rem;
+    font-size: 2.2rem;
 }
 
 .lobby-title .spade,
@@ -43,20 +45,21 @@
 
 .lobby-title .heart,
 .lobby-title .diamond {
-    color: #e63946;
+    color: #d32f2f;
 }
 
 .lobby-subtitle {
-    font-size: 1rem;
-    color: #666;
-    margin: 0 0 30px 0;
+    font-size: 0.9rem;
+    color: #777;
+    margin: 0 0 28px 0;
 }
 
 .connection-status {
-    padding: 12px;
+    padding: 10px;
     border-radius: 8px;
-    margin-bottom: 20px;
+    margin-bottom: 16px;
     font-weight: 600;
+    font-size: 0.9rem;
 }
 
 .connection-status.connecting {
@@ -67,27 +70,28 @@
 .error-message {
     background: #f8d7da;
     color: #721c24;
-    padding: 12px;
+    padding: 10px;
     border-radius: 8px;
-    margin-bottom: 20px;
+    margin-bottom: 16px;
     font-weight: 500;
+    font-size: 0.9rem;
 }
 
 .menu-buttons {
     display: flex;
     flex-direction: column;
-    gap: 15px;
+    gap: 12px;
 }
 
 .form-container {
     display: flex;
     flex-direction: column;
-    gap: 15px;
+    gap: 12px;
 }
 
 .input {
-    padding: 14px 18px;
-    border: 2px solid #ddd;
+    padding: 12px 16px;
+    border: 2px solid #e0e0e0;
     border-radius: 10px;
     font-size: 1rem;
     transition: all 0.3s ease;
@@ -97,27 +101,28 @@
 .input:focus {
     outline: none;
     border-color: #4a90e2;
-    box-shadow: 0 0 0 3px rgba(74, 144, 226, 0.1);
+    box-shadow: 0 0 0 3px rgba(74, 144, 226, 0.12);
 }
 
 .room-code-input {
     text-transform: uppercase;
-    letter-spacing: 2px;
-    font-weight: 600;
+    letter-spacing: 3px;
+    font-weight: 700;
     text-align: center;
+    font-size: 1.1rem;
 }
 
 .team-selection {
     display: flex;
     flex-direction: column;
-    gap: 10px;
-    margin: 10px 0;
+    gap: 8px;
+    margin: 8px 0;
 }
 
 .team-label {
-    font-size: 0.95rem;
+    font-size: 0.9rem;
     font-weight: 600;
-    color: #333;
+    color: #444;
     text-align: left;
 }
 
@@ -128,10 +133,10 @@
 }
 
 .team-btn {
-    padding: 14px 20px;
+    padding: 12px 16px;
     border: 3px solid transparent;
     border-radius: 10px;
-    font-size: 1rem;
+    font-size: 0.95rem;
     font-weight: 700;
     cursor: pointer;
     transition: all 0.3s ease;
@@ -141,42 +146,42 @@
 }
 
 .team-btn.team-alpha {
-    background: linear-gradient(135deg, #4a90e2 0%, #357abd 100%);
+    background: linear-gradient(135deg, #4a90e2, #2d6fc2);
     color: white;
 }
 
 .team-btn.team-alpha:hover {
     transform: translateY(-2px);
-    box-shadow: 0 6px 20px rgba(74, 144, 226, 0.4);
+    box-shadow: 0 6px 18px rgba(74, 144, 226, 0.35);
 }
 
 .team-btn.team-alpha.selected {
     border-color: #1a5490;
-    box-shadow: 0 0 0 3px rgba(74, 144, 226, 0.3);
-    transform: scale(1.05);
+    box-shadow: 0 0 0 3px rgba(74, 144, 226, 0.25);
+    transform: scale(1.04);
 }
 
 .team-btn.team-bravo {
-    background: linear-gradient(135deg, #e63946 0%, #c92a35 100%);
+    background: linear-gradient(135deg, #e63946, #c22a35);
     color: white;
 }
 
 .team-btn.team-bravo:hover {
     transform: translateY(-2px);
-    box-shadow: 0 6px 20px rgba(230, 57, 70, 0.4);
+    box-shadow: 0 6px 18px rgba(230, 57, 70, 0.35);
 }
 
 .team-btn.team-bravo.selected {
     border-color: #a01f2a;
-    box-shadow: 0 0 0 3px rgba(230, 57, 70, 0.3);
-    transform: scale(1.05);
+    box-shadow: 0 0 0 3px rgba(230, 57, 70, 0.25);
+    transform: scale(1.04);
 }
 
 .btn {
-    padding: 14px 28px;
+    padding: 12px 24px;
     border: none;
     border-radius: 10px;
-    font-size: 1.1rem;
+    font-size: 1rem;
     font-weight: 700;
     cursor: pointer;
     transition: all 0.3s ease;
@@ -191,56 +196,92 @@
 }
 
 .btn-primary {
-    background: linear-gradient(135deg, #4a90e2 0%, #357abd 100%);
+    background: linear-gradient(135deg, #4a90e2, #2d6fc2);
     color: white;
 }
 
 .btn-primary:hover:not(:disabled) {
     transform: translateY(-2px);
-    box-shadow: 0 6px 20px rgba(74, 144, 226, 0.4);
+    box-shadow: 0 6px 18px rgba(74, 144, 226, 0.35);
 }
 
 .btn-secondary {
-    background: linear-gradient(135deg, #6c757d 0%, #545b62 100%);
+    background: linear-gradient(135deg, #6c757d, #545b62);
     color: white;
 }
 
 .btn-secondary:hover:not(:disabled) {
     transform: translateY(-2px);
-    box-shadow: 0 6px 20px rgba(108, 117, 125, 0.4);
+    box-shadow: 0 6px 18px rgba(108, 117, 125, 0.35);
 }
 
 .btn-back {
     background: transparent;
-    color: #666;
+    color: #777;
     border: 2px solid #ddd;
 }
 
 .btn-back:hover {
     background: #f8f9fa;
-    border-color: #adb5bd;
+    border-color: #bbb;
 }
 
 .lobby-footer {
-    margin-top: 30px;
-    padding-top: 20px;
+    margin-top: 24px;
+    padding-top: 16px;
     border-top: 2px solid #eee;
-    color: #666;
-    font-size: 0.95rem;
+    color: #777;
+    font-size: 0.85rem;
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 10px;
+    gap: 8px;
 }
 
 .lobby-footer .suit {
-    font-size: 1.2rem;
+    font-size: 1.1rem;
 }
 
 .lobby-footer .diamond {
-    color: #e63946;
+    color: #d32f2f;
 }
 
 .lobby-footer .club {
     color: #1a1a2e;
+}
+
+/* Mobile */
+@media (max-width: 768px) {
+    .lobby {
+        padding: 16px;
+    }
+
+    .lobby-card {
+        padding: 28px 22px;
+        border-radius: 16px;
+    }
+
+    .lobby-title {
+        font-size: 2rem;
+        gap: 10px;
+    }
+
+    .lobby-title .suit {
+        font-size: 1.8rem;
+    }
+
+    .lobby-subtitle {
+        font-size: 0.82rem;
+        margin-bottom: 22px;
+    }
+
+    .btn {
+        padding: 12px 20px;
+        font-size: 0.95rem;
+    }
+
+    .team-btn {
+        padding: 10px 12px;
+        font-size: 0.85rem;
+    }
 }

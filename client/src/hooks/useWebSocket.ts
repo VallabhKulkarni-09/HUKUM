@@ -41,6 +41,8 @@ interface UseWebSocketReturn {
     playCard: (cardId: string) => void;
     selectDealer: (dealerId: PlayerId) => void;
     sendMessage: (text: string) => void;
+    newGame: () => void;
+    goHome: () => void;
 }
 
 // Global WebSocket connection (persists across StrictMode remounts)
@@ -100,6 +102,16 @@ export function useWebSocket(): UseWebSocketReturn {
             case 'ERROR':
                 setError(message.message);
                 setTimeout(() => setError(null), 3000);
+                break;
+
+            case 'GO_HOME':
+                // Reset all room state to return to lobby
+                setRoomCode(null);
+                setPlayerId(null);
+                setSeat(null);
+                setGameState(null);
+                setMyCards([]);
+                setChatMessages([]);
                 break;
 
             default:
@@ -223,6 +235,14 @@ export function useWebSocket(): UseWebSocketReturn {
         send({ type: 'SEND_MESSAGE', text });
     }, [send]);
 
+    const newGame = useCallback(() => {
+        send({ type: 'NEW_GAME' });
+    }, [send]);
+
+    const goHome = useCallback(() => {
+        send({ type: 'GO_HOME' });
+    }, [send]);
+
     return {
         isConnected,
         error,
@@ -242,5 +262,7 @@ export function useWebSocket(): UseWebSocketReturn {
         playCard,
         selectDealer,
         sendMessage,
+        newGame,
+        goHome,
     };
 }

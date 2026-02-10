@@ -28,6 +28,8 @@ function App() {
     playCard,
     selectDealer,
     sendMessage,
+    newGame,
+    goHome,
   } = useWebSocket();
 
   // Show lobby if not in a room
@@ -57,6 +59,8 @@ function App() {
         onSelectDealer={selectDealer}
         onReady={setReady}
         onToggleSwitchRequest={toggleSwitchRequest}
+        onNewGame={newGame}
+        onGoHome={goHome}
       />
 
       <DebugPanel

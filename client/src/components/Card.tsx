@@ -1,11 +1,13 @@
 // ============================================
 // HUKUM GAME - CARD COMPONENT
+// Premium card with animations & sound
 // ============================================
 
 import { useRef, useEffect } from 'react';
 import gsap from 'gsap';
 import type { Card as CardType } from '../types';
 import { SUIT_SYMBOLS, SUIT_COLORS } from '../types';
+import { playSound } from '../audio/soundManager';
 import './Card.css';
 
 interface CardProps {
@@ -22,26 +24,34 @@ export function Card({ card, onClick, isPlayable = false, isSelected = false, is
 
     useEffect(() => {
         if (cardRef.current) {
-            // Entry animation
+            // Deal-in animation
             gsap.fromTo(cardRef.current,
-                { scale: 0.8, opacity: 0, y: 20 },
-                { scale: 1, opacity: 1, y: 0, duration: 0.4, delay, ease: 'back.out(1.7)' }
+                { scale: 0.7, opacity: 0, y: 30, rotateZ: -5 },
+                {
+                    scale: 1, opacity: 1, y: 0, rotateZ: 0,
+                    duration: 0.4, delay,
+                    ease: 'back.out(1.4)',
+                }
             );
+            if (!isInTrick) {
+                playSound('cardDeal');
+            }
         }
-    }, [delay]);
+    }, [delay, isInTrick]);
 
     const handleClick = () => {
         if (isPlayable && onClick) {
-            // Click animation
             if (cardRef.current) {
+                // Play animation — quick scale bounce
                 gsap.to(cardRef.current, {
-                    scale: 0.95,
-                    duration: 0.1,
+                    scale: 0.9,
+                    duration: 0.08,
                     yoyo: true,
                     repeat: 1,
                     ease: 'power2.inOut',
                 });
             }
+            playSound('cardPlay');
             onClick();
         }
     };

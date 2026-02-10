@@ -60,6 +60,14 @@ export function handleMessage(socket: WebSocket, data: string): void {
                 handleChatMessage(socket, message.text, roomManager);
                 break;
 
+            case 'NEW_GAME':
+                handleNewGame(socket, roomManager);
+                break;
+
+            case 'GO_HOME':
+                handleGoHome(socket, roomManager);
+                break;
+
             default:
                 sendError(socket, 'Unknown message type');
         }
@@ -206,7 +214,7 @@ function handleToggleSwitchRequest(socket: WebSocket, roomManager: RoomManager):
     const swapResult = room.engine.getSwapResult(playerId);
     if (swapResult.swapped && swapResult.partnerId) {
         console.log(`🔀 Players ${playerId.slice(0, 8)} and ${swapResult.partnerId.slice(0, 8)} swapped teams`);
-        
+
         // Notify all players about the swap
         roomManager.broadcast(roomCode, {
             type: 'TEAMS_SWAPPED',
@@ -370,14 +378,14 @@ function handlePlayCard(socket: WebSocket, cardId: string, roomManager: RoomMana
             const currentRoom = roomManager.getRoom(roomCode);
             if (currentRoom && currentRoom.engine.getPhase() === 'HAND_END') {
                 console.log(`🎲 Auto-selecting dealer for next hand in room ${roomCode}`);
-                
+
                 // Transition to dealer selection phase
                 currentRoom.engine.transitionToDealerSelection();
-                
+
                 // Automatically select dealer from negative team
                 if (currentRoom.engine.autoSelectDealer()) {
                     console.log(`✅ Dealer auto-selected, starting next hand`);
-                    
+
                     // Broadcast updated game state and send new cards
                     sendPrivateCards(roomCode, roomManager);
                     broadcastGameState(roomCode, roomManager);
@@ -387,21 +395,12 @@ function handlePlayCard(socket: WebSocket, cardId: string, roomManager: RoomMana
             }
         }, 2000);
     } else if (gameState.phase === 'MATCH_END') {
+        const winnerTeam = gameState.score.A >= 16 ? 'A' as const : 'B' as const;
         roomManager.broadcast(roomCode, {
             type: 'MATCH_END',
-            winnerTeam: gameState.score.A >= 16 ? 'A' : 'B',
+            winnerTeam,
             finalScore: gameState.score,
         });
-
-        // Auto-restart game after 10 seconds
-        setTimeout(() => {
-            const currentRoom = roomManager.getRoom(roomCode);
-            if (currentRoom) {
-                console.log(`🔄 Restarting game in room ${roomCode}`);
-                currentRoom.engine.resetMatch();
-                broadcastGameState(roomCode, roomManager);
-            }
-        }, 10000);
     }
 
     broadcastGameState(roomCode, roomManager);
@@ -434,6 +433,30 @@ function handleChatMessage(socket: WebSocket, text: string, roomManager: RoomMan
         playerName: player.name,
         text,
     });
+}
+
+function handleNewGame(socket: WebSocket, roomManager: RoomManager): void {
+    const { playerId, roomCode, room } = getPlayerContext(socket, roomManager);
+    if (!room) return;
+
+    if (room.engine.getPhase() !== 'MATCH_END') {
+        sendError(socket, 'Can only start new game after match ends');
+        return;
+    }
+
+    console.log(`🔄 New game requested in room ${roomCode}`);
+    room.engine.resetMatch();
+    broadcastGameState(roomCode, roomManager);
+}
+
+function handleGoHome(socket: WebSocket, roomManager: RoomManager): void {
+    const { playerId, roomCode, room } = getPlayerContext(socket, roomManager);
+    if (!room) return;
+
+    console.log(`🏠 Go home requested in room ${roomCode}`);
+
+    // Broadcast GO_HOME to all players so they return to lobby
+    roomManager.broadcast(roomCode, { type: 'GO_HOME' });
 }
 
 // ============================================

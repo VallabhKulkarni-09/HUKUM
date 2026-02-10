@@ -9,6 +9,7 @@ import { SUIT_SYMBOLS } from '../types';
 import { Card } from './Card';
 import { PlayerHand } from './PlayerHand';
 import { ActionButtons } from './ActionButtons';
+import { playSound } from '../audio/soundManager';
 import './GameTable.css';
 
 interface GameTableProps {
@@ -23,6 +24,8 @@ interface GameTableProps {
     onSelectDealer: (dealerId: PlayerId) => void;
     onReady: () => void;
     onToggleSwitchRequest: () => void;
+    onNewGame: () => void;
+    onGoHome: () => void;
 }
 
 export function GameTable({
@@ -36,6 +39,8 @@ export function GameTable({
     onPlayCard,
     onReady,
     onToggleSwitchRequest,
+    onNewGame,
+    onGoHome,
 }: GameTableProps) {
     const tableRef = useRef<HTMLDivElement>(null);
 
@@ -71,6 +76,33 @@ export function GameTable({
         }
     }, []);
 
+    // Sound: your turn
+    useEffect(() => {
+        if (isMyTurn && (gameState.phase === 'TRICK_PLAY' || gameState.phase === 'VAKKAI_PLAY')) {
+            playSound('turnNotify');
+        }
+    }, [isMyTurn, gameState.phase]);
+
+    // Sound: match end
+    useEffect(() => {
+        if (gameState.phase === 'MATCH_END' && myPlayer) {
+            const myTeamScore = gameState.score[myPlayer.team];
+            const otherTeamScore = gameState.score[myPlayer.team === 'A' ? 'B' : 'A'];
+            if (myTeamScore > otherTeamScore) {
+                playSound('matchWin');
+            } else {
+                playSound('matchLose');
+            }
+        }
+    }, [gameState.phase]);
+
+    // Sound: hand end
+    useEffect(() => {
+        if (gameState.phase === 'HAND_END') {
+            playSound('trickWin');
+        }
+    }, [gameState.phase]);
+
     return (
         <div className="game-table-container">
             <div className="game-table" ref={tableRef}>
@@ -93,17 +125,19 @@ export function GameTable({
                     </div>
                 </div>
 
-                {/* Trick area */}
-                <div className="trick-area">
-                    {gameState.currentTrick.cards.map((tc, index) => {
-                        const player = gameState.players.find(p => p.id === tc.playerId);
-                        const position = player ? getSeatPosition(player.seat) : 'center';
-                        return (
-                            <div key={index} className={`trick-card ${position}`}>
-                                <Card card={tc.card} isInTrick />
-                            </div>
-                        );
-                    })}
+                {/* Felt table with trick cards */}
+                <div className="felt-table">
+                    <div className="trick-area">
+                        {gameState.currentTrick.cards.map((tc) => {
+                            const player = gameState.players.find(p => p.id === tc.playerId);
+                            const position = player ? getSeatPosition(player.seat) : 'center';
+                            return (
+                                <div key={tc.playerId} className={`trick-card ${position}`}>
+                                    <Card card={tc.card} isInTrick />
+                                </div>
+                            );
+                        })}
+                    </div>
                 </div>
 
                 {/* Other players */}
@@ -217,8 +251,8 @@ export function GameTable({
                         </div>
 
                         {!amIReady ? (
-                            <button 
-                                className="ready-btn" 
+                            <button
+                                className="ready-btn"
                                 onClick={onReady}
                                 disabled={teamAlpha.length !== 2 || teamBravo.length !== 2}
                             >
@@ -250,7 +284,14 @@ export function GameTable({
                                 {gameState.score.A > gameState.score.B ? 'Team Alpha Wins! 🏆' :
                                     gameState.score.B > gameState.score.A ? 'Team Bravo Wins! 🏆' : 'It\'s a Tie!'}
                             </div>
-                            <p className="restart-message">Starting new game in 10 seconds...</p>
+                            <div className="match-end-actions">
+                                <button className="match-end-btn new-game-btn" onClick={onNewGame}>
+                                    🎮 Rematch
+                                </button>
+                                <button className="match-end-btn home-btn" onClick={onGoHome}>
+                                    🏠 Home
+                                </button>
+                            </div>
                         </div>
                     </div>
                 )}
