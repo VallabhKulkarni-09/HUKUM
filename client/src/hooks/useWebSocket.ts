@@ -6,7 +6,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import type { ServerMessage, Card, PublicGameState, Suit, PlayerId, TeamId } from '../types';
 import { playSound, initSounds } from '../audio/soundManager';
 
-const WS_URL = 'ws://localhost:3001';
+const WS_URL = import.meta.env.VITE_WS_URL || 'ws://localhost:3001';
 
 interface ChatMessage {
     playerId: string;
@@ -47,7 +47,6 @@ interface UseWebSocketReturn {
 
 // Global WebSocket connection (persists across StrictMode remounts)
 let globalWs: WebSocket | null = null;
-let connectionPromise: Promise<void> | null = null;
 
 export function useWebSocket(): UseWebSocketReturn {
     const [isConnected, setIsConnected] = useState(false);
@@ -138,21 +137,17 @@ export function useWebSocket(): UseWebSocketReturn {
             const ws = new WebSocket(WS_URL);
             globalWs = ws;
 
-            connectionPromise = new Promise<void>((resolve) => {
-                ws.onopen = () => {
-                    console.log('🔗 Connected to Hukum server');
-                    setIsConnected(true);
-                    setError(null);
-                    initSounds();
-                    resolve();
-                };
-            });
+            ws.onopen = () => {
+                console.log('🔗 Connected to Hukum server');
+                setIsConnected(true);
+                setError(null);
+                initSounds();
+            };
 
             ws.onclose = () => {
                 console.log('❌ Disconnected from server');
                 setIsConnected(false);
                 globalWs = null;
-                connectionPromise = null;
             };
 
             ws.onerror = () => {

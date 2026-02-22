@@ -2,15 +2,25 @@
 // HUKUM GAME - WEBSOCKET SERVER
 // ============================================
 
+import { createServer, IncomingMessage, ServerResponse } from 'http';
 import { WebSocketServer, WebSocket } from 'ws';
 import { handleMessage, handleDisconnect } from './handlers/MessageHandler.js';
 
-const PORT = 3001;
+const PORT = parseInt(process.env.PORT || '3001', 10);
 
-// Create WebSocket server
-const wss = new WebSocketServer({ port: PORT });
+// Create HTTP server (for Render health checks)
+const httpServer = createServer((req: IncomingMessage, res: ServerResponse) => {
+    if (req.url === '/health') {
+        res.writeHead(200, { 'Content-Type': 'text/plain' });
+        res.end('OK');
+    } else {
+        res.writeHead(404, { 'Content-Type': 'text/plain' });
+        res.end('Not Found');
+    }
+});
 
-console.log(`🎴 Hukum Game Server running on ws://localhost:${PORT}`);
+// Attach WebSocket server to HTTP server
+const wss = new WebSocketServer({ server: httpServer });
 
 wss.on('connection', (socket: WebSocket) => {
     console.log('🔗 New player connected');
@@ -34,12 +44,21 @@ wss.on('connection', (socket: WebSocket) => {
     });
 });
 
+// Start listening
+httpServer.listen(PORT, () => {
+    console.log(`🎴 Hukum Game Server running on port ${PORT}`);
+    console.log(`   Health check: http://localhost:${PORT}/health`);
+    console.log(`   WebSocket:    ws://localhost:${PORT}`);
+});
+
 // Graceful shutdown
 process.on('SIGINT', () => {
     console.log('\n🛑 Shutting down server...');
     wss.close(() => {
-        console.log('Server closed');
-        process.exit(0);
+        httpServer.close(() => {
+            console.log('Server closed');
+            process.exit(0);
+        });
     });
 });
 

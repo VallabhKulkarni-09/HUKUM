@@ -4,7 +4,7 @@
 
 import { v4 as uuidv4 } from 'uuid';
 import { WebSocket } from 'ws';
-import { Room, PlayerId, Player } from '../types.js';
+import { Room, PlayerId, Player, TeamId } from '../types.js';
 import { GameEngine, createGameEngine } from '../game/GameState.js';
 
 /**
