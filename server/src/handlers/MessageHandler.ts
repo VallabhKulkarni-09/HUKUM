@@ -152,47 +152,24 @@ function autoPlayForDisconnected(roomCode: string, roomManager: RoomManager): vo
         const p = currentRoom.engine.getPlayer(currentTurnId);
         if (!p || p.isConnected) return; // Player reconnected
 
-        const card = currentRoom.engine.autoPlayCard(currentTurnId);
-        if (card) {
-            console.log(`[AUTO] Played ${card.rank} of ${card.suit} for disconnected player ${p.name}`);
+        const autoResult = currentRoom.engine.autoPlayCard(currentTurnId);
+        if (autoResult) {
+            console.log(`[AUTO] Played ${autoResult.card.rank} of ${autoResult.card.suit} for disconnected player ${p.name}`);
 
             roomManager.broadcast(roomCode, {
                 type: 'CARD_PLAYED',
                 playerId: currentTurnId,
-                card,
+                card: autoResult.card,
             });
 
             sendPrivateCards(roomCode, roomManager);
 
-            // Check for hand/match end after auto-play
-            const gameState = currentRoom.engine.getGameState();
-            if (gameState.phase === 'HAND_END') {
-                roomManager.broadcast(roomCode, {
-                    type: 'HAND_END',
-                    winnerTeam: gameState.dealerTeam!,
-                    points: 0,
-                    reason: 'Hand completed',
-                });
-
+            if (autoResult.trickComplete) {
+                // Show all cards for 1.5s, then resolve
+                broadcastGameState(roomCode, roomManager);
                 setTimeout(() => {
-                    const r = roomManager.getRoom(roomCode);
-                    if (r && r.engine.getPhase() === 'HAND_END') {
-                        r.engine.transitionToDealerSelection();
-                        if (r.engine.autoSelectDealer()) {
-                            sendPrivateCards(roomCode, roomManager);
-                            broadcastGameState(roomCode, roomManager);
-                            // Chain: check if next player is also disconnected
-                            autoPlayForDisconnected(roomCode, roomManager);
-                        }
-                    }
-                }, 2000);
-            } else if (gameState.phase === 'MATCH_END') {
-                const winnerTeam = gameState.score.A >= 16 ? 'A' as const : 'B' as const;
-                roomManager.broadcast(roomCode, {
-                    type: 'MATCH_END',
-                    winnerTeam,
-                    finalScore: gameState.score,
-                });
+                    resolveTrickAndContinue(roomCode, roomManager);
+                }, 1500);
             } else {
                 broadcastGameState(roomCode, roomManager);
                 // Chain: check if next player is also disconnected
@@ -200,6 +177,59 @@ function autoPlayForDisconnected(roomCode: string, roomManager: RoomManager): vo
             }
         }
     }, 2000);
+}
+
+/**
+ * Resolve a completed trick, handle hand/match end, and continue game flow.
+ * Shared by handlePlayCard and autoPlayForDisconnected.
+ */
+function resolveTrickAndContinue(roomCode: string, roomManager: RoomManager): void {
+    const room = roomManager.getRoom(roomCode);
+    if (!room) return;
+
+    room.engine.resolveTrick();
+    const gameState = room.engine.getGameState();
+
+    if (gameState.phase === 'HAND_END') {
+        roomManager.broadcast(roomCode, {
+            type: 'HAND_END',
+            winnerTeam: gameState.dealerTeam!,
+            points: 0,
+            reason: 'Hand completed',
+        });
+
+        broadcastGameState(roomCode, roomManager);
+
+        // Wait 2s before auto-selecting dealer and starting next hand
+        setTimeout(() => {
+            const r = roomManager.getRoom(roomCode);
+            if (r && r.engine.getPhase() === 'HAND_END') {
+                console.log(`[DEALER] Auto-selecting dealer for next hand in room ${roomCode}`);
+                r.engine.transitionToDealerSelection();
+                if (r.engine.autoSelectDealer()) {
+                    console.log('[DEALER] Dealer auto-selected, starting next hand');
+                    sendPrivateCards(roomCode, roomManager);
+                    broadcastGameState(roomCode, roomManager);
+                    // Chain: check if next player is disconnected
+                    autoPlayForDisconnected(roomCode, roomManager);
+                } else {
+                    console.error(`[ERROR] Failed to auto-select dealer in room ${roomCode}`);
+                }
+            }
+        }, 2000);
+    } else if (gameState.phase === 'MATCH_END') {
+        const winnerTeam = gameState.score.A >= 16 ? 'A' as const : 'B' as const;
+        roomManager.broadcast(roomCode, {
+            type: 'MATCH_END',
+            winnerTeam,
+            finalScore: gameState.score,
+        });
+        broadcastGameState(roomCode, roomManager);
+    } else {
+        broadcastGameState(roomCode, roomManager);
+        // Chain: check if next player is disconnected
+        autoPlayForDisconnected(roomCode, roomManager);
+    }
 }
 
 // ============================================
@@ -506,49 +536,17 @@ function handlePlayCard(socket: WebSocket, cardId: string, roomManager: RoomMana
     // Send updated hands to all players (card should vanish from hand)
     sendPrivateCards(roomCode, roomManager);
 
-    // Check for hand/match end
-    const gameState = room.engine.getGameState();
+    if (result.trickComplete) {
+        // Broadcast state with ALL 4 cards visible
+        broadcastGameState(roomCode, roomManager);
 
-    if (gameState.phase === 'HAND_END') {
-        // Broadcast hand result (this will be displayed for 2 seconds on client)
-        roomManager.broadcast(roomCode, {
-            type: 'HAND_END',
-            winnerTeam: gameState.dealerTeam!,
-            points: 0, // Points are already applied to score
-            reason: 'Hand completed',
-        });
-
-        // Wait 2 seconds before auto-selecting dealer and starting next hand
+        // Wait 1.5s so players can see all 4 cards, then resolve
         setTimeout(() => {
-            const currentRoom = roomManager.getRoom(roomCode);
-            if (currentRoom && currentRoom.engine.getPhase() === 'HAND_END') {
-                console.log(`[DEALER] Auto-selecting dealer for next hand in room ${roomCode}`);
-
-                // Transition to dealer selection phase
-                currentRoom.engine.transitionToDealerSelection();
-
-                // Automatically select dealer from negative team
-                if (currentRoom.engine.autoSelectDealer()) {
-                    console.log('[DEALER] Dealer auto-selected, starting next hand');
-
-                    // Broadcast updated game state and send new cards
-                    sendPrivateCards(roomCode, roomManager);
-                    broadcastGameState(roomCode, roomManager);
-                } else {
-                    console.error(`[ERROR] Failed to auto-select dealer in room ${roomCode}`);
-                }
-            }
-        }, 2000);
-    } else if (gameState.phase === 'MATCH_END') {
-        const winnerTeam = gameState.score.A >= 16 ? 'A' as const : 'B' as const;
-        roomManager.broadcast(roomCode, {
-            type: 'MATCH_END',
-            winnerTeam,
-            finalScore: gameState.score,
-        });
+            resolveTrickAndContinue(roomCode, roomManager);
+        }, 1500);
+    } else {
+        broadcastGameState(roomCode, roomManager);
     }
-
-    broadcastGameState(roomCode, roomManager);
 }
 
 function handleSelectDealer(socket: WebSocket, dealerId: PlayerId, roomManager: RoomManager): void {

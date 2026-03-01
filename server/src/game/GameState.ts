@@ -474,9 +474,10 @@ export class GameEngine {
     }
 
     /**
-     * Play a card
+     * Play a card. Does NOT auto-resolve trick — caller must check trickComplete
+     * and call resolveTrick() after a delay.
      */
-    playCard(playerId: PlayerId, cardId: string): { success: boolean; error?: string } {
+    playCard(playerId: PlayerId, cardId: string): { success: boolean; error?: string; trickComplete?: boolean } {
         const phase = this.gameState.phase;
         if (phase !== 'TRICK_PLAY' && phase !== 'VAKKAI_PLAY') {
             return { success: false, error: 'Not in trick play phase' };
@@ -510,12 +511,11 @@ export class GameEngine {
         // Check if trick is complete
         const isVakkai = this.gameState.vakkai.active;
         if (isTrickComplete(this.gameState.currentTrick, isVakkai)) {
-            this.resolveTrick();
+            return { success: true, trickComplete: true };
         } else {
             this.advanceToNextPlayer();
+            return { success: true, trickComplete: false };
         }
-
-        return { success: true };
     }
 
     /**
@@ -542,9 +542,9 @@ export class GameEngine {
     }
 
     /**
-     * Resolve completed trick
+     * Resolve completed trick (public — called after a delay by MessageHandler)
      */
-    private resolveTrick(): { winnerId: PlayerId; team: TeamId; handEnd?: { team: TeamId; points: number; reason: string } } {
+    resolveTrick(): { winnerId: PlayerId; team: TeamId; handEnd?: { team: TeamId; points: number; reason: string } } {
         const winnerId = calculateTrickWinner(this.gameState.currentTrick, this.gameState.trumpSuit)!;
         const winner = this.players.get(winnerId)!;
         const team = winner.team;
@@ -832,15 +832,15 @@ export class GameEngine {
 
     /**
      * Auto-play a random valid card for a disconnected player.
-     * Returns the played card, or null if unable.
+     * Returns the played card and trickComplete flag, or null if unable.
      */
-    autoPlayCard(playerId: PlayerId): Card | null {
+    autoPlayCard(playerId: PlayerId): { card: Card; trickComplete: boolean } | null {
         const validCards = this.getValidCards(playerId);
         if (validCards.length === 0) return null;
 
         const card = validCards[Math.floor(Math.random() * validCards.length)];
         const result = this.playCard(playerId, card.id);
-        if (result.success) return card;
+        if (result.success) return { card, trickComplete: result.trickComplete || false };
         return null;
     }
 
