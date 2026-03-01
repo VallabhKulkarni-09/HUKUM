@@ -109,6 +109,17 @@ export class RoomManager {
     }
 
     /**
+     * Rejoin: swap old player ID socket mapping to new player ID
+     */
+    rejoinPlayer(roomCode: string, oldPlayerId: PlayerId, newPlayerId: PlayerId, socket: WebSocket): void {
+        const room = this.rooms.get(roomCode);
+        if (!room) return;
+
+        room.playerSockets.delete(oldPlayerId);
+        room.playerSockets.set(newPlayerId, socket);
+    }
+
+    /**
      * Broadcast message to all players in a room
      */
     broadcast(roomCode: string, message: object, excludePlayer?: PlayerId): void {

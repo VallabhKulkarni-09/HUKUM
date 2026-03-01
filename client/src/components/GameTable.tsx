@@ -108,8 +108,8 @@ export function GameTable({
             <div className="game-table" ref={tableRef}>
                 {/* Room code and info bar */}
                 <div className="info-bar">
-                    <div className="room-info">
-                        Room: <strong>{gameState.dealerId ? 'Active' : 'Waiting'}</strong>
+                    <div className="room-info" onClick={copyRoomId} title="Click to copy Room ID" style={{ cursor: 'pointer' }}>
+                        Room: <strong>{roomCode}</strong> 📋
                     </div>
                     {gameState.trumpSuit && (
                         <div className="trump-info">
@@ -146,13 +146,16 @@ export function GameTable({
                     .map(player => {
                         const position = getSeatPosition(player.seat);
                         return (
-                            <div key={player.id} className={`opponent ${position}`}>
+                            <div key={player.id} className={`opponent ${position} ${!player.isConnected ? 'disconnected' : ''}`}>
                                 <div className="opponent-info">
                                     <span className={`team-badge team-${player.team.toLowerCase()}`}>
                                         {player.team}
                                     </span>
                                     <span className="opponent-name">{player.name}</span>
-                                    {gameState.currentTurnId === player.id && (
+                                    {!player.isConnected && (
+                                        <span className="disconnected-label">Disconnected</span>
+                                    )}
+                                    {player.isConnected && gameState.currentTurnId === player.id && (
                                         <span className="turn-dot" />
                                     )}
                                 </div>
@@ -166,8 +169,8 @@ export function GameTable({
                         );
                     })}
 
-                {/* Team selection and Ready - New Design */}
-                {gameState.phase === 'READY_CHECK' && (
+                {/* Team selection and Ready */}
+                {(gameState.phase === 'READY_CHECK' || gameState.phase === 'WAITING_FOR_PLAYERS') && (
                     <div className="lobby-container">
                         <div className="team-columns">
                             {/* Team Alpha (Blue) */}
@@ -318,12 +321,7 @@ export function GameTable({
                     </div>
                 )}
 
-                {/* Waiting for players */}
-                {gameState.phase === 'WAITING_FOR_PLAYERS' && (
-                    <div className="waiting-message">
-                        Waiting for players... ({gameState.players.length}/4)
-                    </div>
-                )}
+
 
                 {/* Phase-specific message */}
                 {gameState.phase === 'VAKKAI_PLAY' && gameState.vakkai.active && (

@@ -3,6 +3,7 @@
 // ============================================
 
 import { WebSocket } from 'ws';
+import { v4 as uuidv4 } from 'uuid';
 import { ClientMessage, ServerMessage, PlayerId, Suit, TeamId } from '../types.js';
 import { RoomManager, getRoomManager } from '../room/RoomManager.js';
 
@@ -88,21 +89,116 @@ export function handleDisconnect(socket: WebSocket): void {
 
     const roomManager = getRoomManager();
     const room = roomManager.getRoom(roomCode);
+    if (!room) return;
 
-    if (room) {
+    const phase = room.engine.getPhase();
+    const isLobby = phase === 'WAITING_FOR_PLAYERS' || phase === 'READY_CHECK';
+
+    socketToPlayer.delete(socket);
+
+    if (isLobby) {
+        // LOBBY: fully remove player, free the seat
+        roomManager.broadcast(roomCode, { type: 'PLAYER_LEFT', playerId } as ServerMessage);
+        roomManager.removePlayer(roomCode, playerId);
+        playerRooms.delete(playerId);
+
+        // If room still exists, broadcast updated state
+        const updatedRoom = roomManager.getRoom(roomCode);
+        if (updatedRoom) {
+            broadcastGameState(roomCode, roomManager);
+        }
+        console.log(`🚪 Player ${playerId.slice(0, 8)} removed from lobby in room ${roomCode}`);
+    } else {
+        // GAMEPLAY: mark disconnected, keep in game
         const player = room.engine.getPlayer(playerId);
         if (player) {
             player.isConnected = false;
-
-            // Notify others
-            roomManager.broadcast(roomCode, {
-                type: 'PLAYER_LEFT',
-                playerId,
-            } as ServerMessage);
+            console.log(`⚡ Player ${player.name} disconnected mid-game in room ${roomCode}`);
         }
-    }
 
-    socketToPlayer.delete(socket);
+        roomManager.broadcast(roomCode, { type: 'PLAYER_LEFT', playerId } as ServerMessage);
+        broadcastGameState(roomCode, roomManager);
+
+        // If it's this disconnected player's turn, auto-play after a delay
+        autoPlayForDisconnected(roomCode, roomManager);
+    }
+}
+
+/**
+ * Auto-play for disconnected players. Chains if multiple disconnected players in a row.
+ */
+function autoPlayForDisconnected(roomCode: string, roomManager: RoomManager): void {
+    const room = roomManager.getRoom(roomCode);
+    if (!room) return;
+
+    const phase = room.engine.getPhase();
+    if (phase !== 'TRICK_PLAY' && phase !== 'VAKKAI_PLAY') return;
+
+    const currentTurnId = room.engine.getGameState().currentTurnId;
+    if (!currentTurnId) return;
+
+    const currentPlayer = room.engine.getPlayer(currentTurnId);
+    if (!currentPlayer || currentPlayer.isConnected) return;
+
+    // Auto-play after 2 seconds
+    setTimeout(() => {
+        const currentRoom = roomManager.getRoom(roomCode);
+        if (!currentRoom) return;
+
+        const gs = currentRoom.engine.getGameState();
+        if (gs.currentTurnId !== currentTurnId) return; // Turn already changed
+
+        const p = currentRoom.engine.getPlayer(currentTurnId);
+        if (!p || p.isConnected) return; // Player reconnected
+
+        const card = currentRoom.engine.autoPlayCard(currentTurnId);
+        if (card) {
+            console.log(`🤖 Auto-played ${card.rank} of ${card.suit} for disconnected player ${p.name}`);
+
+            roomManager.broadcast(roomCode, {
+                type: 'CARD_PLAYED',
+                playerId: currentTurnId,
+                card,
+            });
+
+            sendPrivateCards(roomCode, roomManager);
+
+            // Check for hand/match end after auto-play
+            const gameState = currentRoom.engine.getGameState();
+            if (gameState.phase === 'HAND_END') {
+                roomManager.broadcast(roomCode, {
+                    type: 'HAND_END',
+                    winnerTeam: gameState.dealerTeam!,
+                    points: 0,
+                    reason: 'Hand completed',
+                });
+
+                setTimeout(() => {
+                    const r = roomManager.getRoom(roomCode);
+                    if (r && r.engine.getPhase() === 'HAND_END') {
+                        r.engine.transitionToDealerSelection();
+                        if (r.engine.autoSelectDealer()) {
+                            sendPrivateCards(roomCode, roomManager);
+                            broadcastGameState(roomCode, roomManager);
+                            // Chain: check if next player is also disconnected
+                            autoPlayForDisconnected(roomCode, roomManager);
+                        }
+                    }
+                }, 2000);
+            } else if (gameState.phase === 'MATCH_END') {
+                const winnerTeam = gameState.score.A >= 16 ? 'A' as const : 'B' as const;
+                roomManager.broadcast(roomCode, {
+                    type: 'MATCH_END',
+                    winnerTeam,
+                    finalScore: gameState.score,
+                });
+            } else {
+                broadcastGameState(roomCode, roomManager);
+                // Chain: check if next player is also disconnected
+                autoPlayForDisconnected(roomCode, roomManager);
+            }
+        }
+    }, 2000);
 }
 
 // ============================================
@@ -140,6 +236,57 @@ function handleCreateRoom(socket: WebSocket, playerName: string, team: TeamId, r
 }
 
 function handleJoinRoom(socket: WebSocket, roomCode: string, playerName: string, team: TeamId, roomManager: RoomManager): void {
+    const room = roomManager.getRoom(roomCode);
+    if (!room) {
+        sendError(socket, 'Room not found');
+        return;
+    }
+
+    const phase = room.engine.getPhase();
+    const isGameplay = phase !== 'WAITING_FOR_PLAYERS' && phase !== 'READY_CHECK';
+
+    // Check for rejoin: is there a disconnected player on this team?
+    if (isGameplay) {
+        const disconnectedPlayer = room.engine.getDisconnectedPlayerOnTeam(team);
+        if (disconnectedPlayer) {
+            // REJOIN: take over the disconnected player's seat
+            const oldId = disconnectedPlayer.id;
+            const newId = uuidv4();
+
+            const reconnected = room.engine.reconnectPlayer(oldId, newId, playerName);
+            if (reconnected) {
+                roomManager.rejoinPlayer(roomCode, oldId, newId, socket);
+
+                playerRooms.set(newId, roomCode);
+                socketToPlayer.set(socket, newId);
+
+                // Clean up old mapping
+                playerRooms.delete(oldId);
+
+                send(socket, {
+                    type: 'ROOM_JOINED',
+                    roomCode,
+                    playerId: newId,
+                    seat: reconnected.seat,
+                });
+
+                // Send their hand back
+                roomManager.sendToPlayer(roomCode, newId, {
+                    type: 'PRIVATE_CARDS',
+                    cards: reconnected.hand,
+                });
+
+                broadcastGameState(roomCode, roomManager);
+                console.log(`🔄 Player ${playerName} rejoined room ${roomCode} at seat ${reconnected.seat}`);
+                return;
+            }
+        } else {
+            sendError(socket, 'Game in progress. No disconnected seat available on your team.');
+            return;
+        }
+    }
+
+    // Normal join (lobby phase)
     const result = roomManager.joinRoom(roomCode, playerName, team, socket);
 
     if (!result) {
@@ -175,15 +322,12 @@ function handleJoinRoom(socket: WebSocket, roomCode: string, playerName: string,
     }, playerId);
 
     // Check if room is now full (4 players) - start ready check
-    const room = roomManager.getRoom(roomCode);
-    if (room && room.engine.getAllPlayers().length === 4) {
+    if (room.engine.getAllPlayers().length === 4) {
         room.engine.startReadyCheck();
     }
 
-    // Send current game state to new player (and broadcast to all)
-    if (room) {
-        broadcastGameState(roomCode, roomManager);
-    }
+    // Send current game state
+    broadcastGameState(roomCode, roomManager);
 }
 
 function handleToggleSwitchRequest(socket: WebSocket, roomManager: RoomManager): void {

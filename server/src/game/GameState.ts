@@ -411,6 +411,24 @@ export class GameEngine {
     }
 
     /**
+     * Force reset to WAITING_FOR_PLAYERS (bypasses state machine).
+     * Used when a player disconnects mid-game.
+     */
+    forceReset(): void {
+        this.stateMachine.forcePhase('WAITING_FOR_PLAYERS');
+
+        this.gameState = {
+            ...this.createInitialGameState(),
+            phase: 'WAITING_FOR_PLAYERS',
+        };
+
+        this.players.forEach(p => {
+            p.hand = [];
+            p.isReady = false;
+        });
+    }
+
+    /**
      * Choose Hukum (trump suit)
      */
     chooseHukum(playerId: PlayerId, suit: Suit): boolean {
@@ -789,6 +807,79 @@ export class GameEngine {
      */
     getAllPlayers(): Player[] {
         return [...this.players.values()];
+    }
+
+    /**
+     * Get valid cards a player can play (follows suit rules)
+     */
+    getValidCards(playerId: PlayerId): Card[] {
+        const player = this.players.get(playerId);
+        if (!player || player.hand.length === 0) return [];
+
+        const leadSuit = this.gameState.currentTrick.leadSuit;
+        if (!leadSuit) {
+            // Leading the trick — any card is valid
+            return [...player.hand];
+        }
+
+        // Must follow suit if possible
+        const suitCards = player.hand.filter(c => c.suit === leadSuit);
+        if (suitCards.length > 0) return suitCards;
+
+        // Can't follow suit — any card is valid
+        return [...player.hand];
+    }
+
+    /**
+     * Auto-play a random valid card for a disconnected player.
+     * Returns the played card, or null if unable.
+     */
+    autoPlayCard(playerId: PlayerId): Card | null {
+        const validCards = this.getValidCards(playerId);
+        if (validCards.length === 0) return null;
+
+        const card = validCards[Math.floor(Math.random() * validCards.length)];
+        const result = this.playCard(playerId, card.id);
+        if (result.success) return card;
+        return null;
+    }
+
+    /**
+     * Find first disconnected player on a team (for rejoin)
+     */
+    getDisconnectedPlayerOnTeam(team: TeamId): Player | undefined {
+        return [...this.players.values()].find(p => p.team === team && !p.isConnected);
+    }
+
+    /**
+     * Reconnect: swap old player ID with new one, preserving hand/seat/team.
+     * Returns the reconnected player or null.
+     */
+    reconnectPlayer(oldId: PlayerId, newId: PlayerId, newName: string): Player | null {
+        const player = this.players.get(oldId);
+        if (!player) return null;
+
+        // Update player identity
+        player.id = newId;
+        player.name = newName;
+        player.isConnected = true;
+
+        // Re-key in the map
+        this.players.delete(oldId);
+        this.players.set(newId, player);
+
+        // Update any game state references to old ID
+        if (this.gameState.dealerId === oldId) this.gameState.dealerId = newId;
+        if (this.gameState.trumpChooserId === oldId) this.gameState.trumpChooserId = newId;
+        if (this.gameState.currentTurnId === oldId) this.gameState.currentTurnId = newId;
+        if (this.gameState.vakkai.declarerId === oldId) this.gameState.vakkai.declarerId = newId;
+
+        // Update trick cards
+        for (const tc of this.gameState.currentTrick.cards) {
+            if (tc.playerId === oldId) tc.playerId = newId;
+        }
+
+        return player;
     }
 }
 
