@@ -23,7 +23,7 @@ const httpServer = createServer((req: IncomingMessage, res: ServerResponse) => {
 const wss = new WebSocketServer({ server: httpServer });
 
 wss.on('connection', (socket: WebSocket) => {
-    console.log('🔗 New player connected');
+    console.log('[WS] New player connected');
 
     socket.on('message', (data: Buffer) => {
         try {
@@ -35,7 +35,7 @@ wss.on('connection', (socket: WebSocket) => {
     });
 
     socket.on('close', () => {
-        console.log('❌ Player disconnected');
+        console.log('[WS] Player disconnected');
         handleDisconnect(socket);
     });
 
@@ -46,14 +46,14 @@ wss.on('connection', (socket: WebSocket) => {
 
 // Start listening
 httpServer.listen(PORT, () => {
-    console.log(`🎴 Hukum Game Server running on port ${PORT}`);
+    console.log(`[SERVER] Hukum Game Server running on port ${PORT}`);
     console.log(`   Health check: http://localhost:${PORT}/health`);
     console.log(`   WebSocket:    ws://localhost:${PORT}`);
 });
 
 // Graceful shutdown
 process.on('SIGINT', () => {
-    console.log('\n🛑 Shutting down server...');
+    console.log('\n[SHUTDOWN] Shutting down server...');
     wss.close(() => {
         httpServer.close(() => {
             console.log('Server closed');

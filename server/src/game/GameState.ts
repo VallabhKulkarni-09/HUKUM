@@ -674,7 +674,7 @@ export class GameEngine {
         const trumpChooser = this.getPlayerBySeat(trumpChooserSeat);
         this.gameState.trumpChooserId = trumpChooser!.id;
 
-        console.log(`🎴 Auto-selected dealer: ${dealer.name} (Team ${choosingTeam})`);
+        console.log(`[DEALER] Auto-selected: ${dealer.name} (Team ${choosingTeam})`);
 
         // Reset for new hand
         this.resetForNewHand();

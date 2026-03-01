@@ -171,7 +171,7 @@ export function useWebSocket(): UseWebSocketReturn {
         // Don't close on unmount - keep connection alive
         return () => {
             // Only log, don't actually close
-            console.log('🔄 Component unmounting (connection kept alive)');
+            console.log('[WS] Component unmounting (connection kept alive)');
         };
     }, []);
 

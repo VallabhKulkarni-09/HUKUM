@@ -53,6 +53,10 @@ export function GameTable({
     const teamAlpha = gameState.players.filter(p => p.team === 'A');
     const teamBravo = gameState.players.filter(p => p.team === 'B');
 
+    // Key players
+    const dealerPlayer = gameState.dealerId ? gameState.players.find(p => p.id === gameState.dealerId) : null;
+    const trumpChooserPlayer = gameState.trumpChooserId ? gameState.players.find(p => p.id === gameState.trumpChooserId) : null;
+
     // Copy room ID to clipboard
     const copyRoomId = () => {
         navigator.clipboard.writeText(roomCode);
@@ -111,6 +115,19 @@ export function GameTable({
                     <div className="room-info" onClick={copyRoomId} title="Click to copy Room ID" style={{ cursor: 'pointer' }}>
                         Room: <strong>{roomCode}</strong> 📋
                     </div>
+
+                    {dealerPlayer && (
+                        <div className="info-item">
+                            Dealer: <strong>{dealerPlayer.name}</strong>
+                        </div>
+                    )}
+
+                    {trumpChooserPlayer && gameState.trumpSuit && (
+                        <div className="info-item">
+                            Trump by: <strong>{trumpChooserPlayer.name}</strong>
+                        </div>
+                    )}
+
                     {gameState.trumpSuit && (
                         <div className="trump-info">
                             Trump: <span className={`trump-suit ${gameState.trumpSuit.toLowerCase()}`}>
@@ -118,6 +135,13 @@ export function GameTable({
                             </span>
                         </div>
                     )}
+
+                    <div className="tricks-info">
+                        Tricks: <span className="team-a">{gameState.trickCounts.A}</span>
+                        <span className="separator">-</span>
+                        <span className="team-b">{gameState.trickCounts.B}</span>
+                    </div>
+
                     <div className="score-bar">
                         <span className="team-a">A: {gameState.score.A}</span>
                         <span className="separator">|</span>
@@ -181,7 +205,7 @@ export function GameTable({
                                         <div key={player.id} className="player-row">
                                             <span className="player-number">{idx + 1}.</span>
                                             <span className="player-name">{player.name}</span>
-                                            {player.wantsSwitch && <span className="switch-indicator">🔄</span>}
+                                            {player.wantsSwitch && <span className="switch-indicator">Switch</span>}
                                             <span className={`player-status ${player.isReady ? 'ready' : 'not-ready'}`}>
                                                 {player.isReady ? 'READY' : 'NOT READY'}
                                             </span>
@@ -204,7 +228,7 @@ export function GameTable({
                                         <div key={player.id} className="player-row">
                                             <span className="player-number">{idx + 1}.</span>
                                             <span className="player-name">{player.name}</span>
-                                            {player.wantsSwitch && <span className="switch-indicator">🔄</span>}
+                                            {player.wantsSwitch && <span className="switch-indicator">Switch</span>}
                                             <span className={`player-status ${player.isReady ? 'ready' : 'not-ready'}`}>
                                                 {player.isReady ? 'READY' : 'NOT READY'}
                                             </span>
@@ -226,7 +250,7 @@ export function GameTable({
                                     className={`action-btn switch-teams-btn ${myPlayer?.wantsSwitch ? 'active' : ''}`}
                                     onClick={onToggleSwitchRequest}
                                 >
-                                    {myPlayer?.wantsSwitch ? '✓ Switch Requested' : 'Request Team Switch'}
+                                    {myPlayer?.wantsSwitch ? 'Switch Requested' : 'Request Team Switch'}
                                 </button>
                             )}
                             <button
@@ -262,7 +286,7 @@ export function GameTable({
                                 Ready to Play
                             </button>
                         ) : (
-                            <div className="ready-status">✓ You are ready! Waiting for others...</div>
+                            <div className="ready-status">You are ready! Waiting for others...</div>
                         )}
                     </div>
                 )}
@@ -289,10 +313,10 @@ export function GameTable({
                             </div>
                             <div className="match-end-actions">
                                 <button className="match-end-btn new-game-btn" onClick={onNewGame}>
-                                    🎮 Rematch
+                                    Rematch
                                 </button>
                                 <button className="match-end-btn home-btn" onClick={onGoHome}>
-                                    🏠 Home
+                                    Home
                                 </button>
                             </div>
                         </div>

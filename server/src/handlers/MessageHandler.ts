@@ -102,18 +102,19 @@ export function handleDisconnect(socket: WebSocket): void {
         roomManager.removePlayer(roomCode, playerId);
         playerRooms.delete(playerId);
 
-        // If room still exists, broadcast updated state
+        // If room still exists, reset phase to WAITING_FOR_PLAYERS and broadcast
         const updatedRoom = roomManager.getRoom(roomCode);
         if (updatedRoom) {
+            updatedRoom.engine.forceReset();
             broadcastGameState(roomCode, roomManager);
         }
-        console.log(`🚪 Player ${playerId.slice(0, 8)} removed from lobby in room ${roomCode}`);
+        console.log(`[LOBBY] Player ${playerId.slice(0, 8)} removed from room ${roomCode}`);
     } else {
         // GAMEPLAY: mark disconnected, keep in game
         const player = room.engine.getPlayer(playerId);
         if (player) {
             player.isConnected = false;
-            console.log(`⚡ Player ${player.name} disconnected mid-game in room ${roomCode}`);
+            console.log(`[GAME] Player ${player.name} disconnected mid-game in room ${roomCode}`);
         }
 
         roomManager.broadcast(roomCode, { type: 'PLAYER_LEFT', playerId } as ServerMessage);
@@ -153,7 +154,7 @@ function autoPlayForDisconnected(roomCode: string, roomManager: RoomManager): vo
 
         const card = currentRoom.engine.autoPlayCard(currentTurnId);
         if (card) {
-            console.log(`🤖 Auto-played ${card.rank} of ${card.suit} for disconnected player ${p.name}`);
+            console.log(`[AUTO] Played ${card.rank} of ${card.suit} for disconnected player ${p.name}`);
 
             roomManager.broadcast(roomCode, {
                 type: 'CARD_PLAYED',
@@ -277,7 +278,7 @@ function handleJoinRoom(socket: WebSocket, roomCode: string, playerName: string,
                 });
 
                 broadcastGameState(roomCode, roomManager);
-                console.log(`🔄 Player ${playerName} rejoined room ${roomCode} at seat ${reconnected.seat}`);
+                console.log(`[REJOIN] Player ${playerName} rejoined room ${roomCode} at seat ${reconnected.seat}`);
                 return;
             }
         } else {
@@ -333,11 +334,11 @@ function handleJoinRoom(socket: WebSocket, roomCode: string, playerName: string,
 function handleToggleSwitchRequest(socket: WebSocket, roomManager: RoomManager): void {
     const { playerId, roomCode, room } = getPlayerContext(socket, roomManager);
     if (!room) {
-        console.log('❌ Toggle switch failed: room not found');
+        console.log('[ERROR] Toggle switch failed: room not found');
         return;
     }
 
-    console.log(`🔄 Player ${playerId.slice(0, 8)} toggling switch request`);
+    console.log(`[SWITCH] Player ${playerId.slice(0, 8)} toggling switch request`);
 
     if (!room.engine.toggleSwitchRequest(playerId)) {
         sendError(socket, 'Cannot toggle switch request now');
@@ -357,7 +358,7 @@ function handleToggleSwitchRequest(socket: WebSocket, roomManager: RoomManager):
     // Check if a swap occurred
     const swapResult = room.engine.getSwapResult(playerId);
     if (swapResult.swapped && swapResult.partnerId) {
-        console.log(`🔀 Players ${playerId.slice(0, 8)} and ${swapResult.partnerId.slice(0, 8)} swapped teams`);
+        console.log(`[SWAP] Players ${playerId.slice(0, 8)} and ${swapResult.partnerId.slice(0, 8)} swapped teams`);
 
         // Notify all players about the swap
         roomManager.broadcast(roomCode, {
@@ -378,11 +379,11 @@ function handleChangeTeam(socket: WebSocket, team: TeamId, roomManager: RoomMana
 function handleReady(socket: WebSocket, roomManager: RoomManager): void {
     const { playerId, roomCode, room } = getPlayerContext(socket, roomManager);
     if (!room) {
-        console.log('❌ Ready failed: room not found');
+        console.log('[ERROR] Ready failed: room not found');
         return;
     }
 
-    console.log(`✅ Player ${playerId.slice(0, 8)} is ready`);
+    console.log(`[READY] Player ${playerId.slice(0, 8)} is ready`);
     room.engine.setPlayerReady(playerId, true);
 
     // Notify all
@@ -396,7 +397,7 @@ function handleReady(socket: WebSocket, roomManager: RoomManager): void {
 
     // Check if all ready
     if (room.engine.allPlayersReady()) {
-        console.log('🎮 All players ready - starting game!');
+        console.log('[GAME] All players ready - starting game');
 
         // Start game with initial toss
         const tossResult = room.engine.performInitialToss();
@@ -521,20 +522,20 @@ function handlePlayCard(socket: WebSocket, cardId: string, roomManager: RoomMana
         setTimeout(() => {
             const currentRoom = roomManager.getRoom(roomCode);
             if (currentRoom && currentRoom.engine.getPhase() === 'HAND_END') {
-                console.log(`🎲 Auto-selecting dealer for next hand in room ${roomCode}`);
+                console.log(`[DEALER] Auto-selecting dealer for next hand in room ${roomCode}`);
 
                 // Transition to dealer selection phase
                 currentRoom.engine.transitionToDealerSelection();
 
                 // Automatically select dealer from negative team
                 if (currentRoom.engine.autoSelectDealer()) {
-                    console.log(`✅ Dealer auto-selected, starting next hand`);
+                    console.log('[DEALER] Dealer auto-selected, starting next hand');
 
                     // Broadcast updated game state and send new cards
                     sendPrivateCards(roomCode, roomManager);
                     broadcastGameState(roomCode, roomManager);
                 } else {
-                    console.error(`❌ Failed to auto-select dealer in room ${roomCode}`);
+                    console.error(`[ERROR] Failed to auto-select dealer in room ${roomCode}`);
                 }
             }
         }, 2000);
@@ -588,7 +589,7 @@ function handleNewGame(socket: WebSocket, roomManager: RoomManager): void {
         return;
     }
 
-    console.log(`🔄 New game requested in room ${roomCode}`);
+    console.log(`[GAME] New game requested in room ${roomCode}`);
     room.engine.resetMatch();
     broadcastGameState(roomCode, roomManager);
 }

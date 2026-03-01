@@ -5,8 +5,8 @@
 import { useWebSocket } from './hooks/useWebSocket';
 import { Lobby } from './components/Lobby';
 import { GameTable } from './components/GameTable';
-import { DebugPanel } from './components/DebugPanel';
 import { ChatBox } from './components/ChatBox';
+import { RulesPanel } from './components/RulesPanel';
 import './App.css';
 
 function App() {
@@ -35,12 +35,15 @@ function App() {
   // Show lobby if not in a room
   if (!roomCode || !gameState) {
     return (
-      <Lobby
-        onCreateRoom={createRoom}
-        onJoinRoom={joinRoom}
-        isConnected={isConnected}
-        error={error}
-      />
+      <>
+        <Lobby
+          onCreateRoom={createRoom}
+          onJoinRoom={joinRoom}
+          isConnected={isConnected}
+          error={error}
+        />
+        <RulesPanel />
+      </>
     );
   }
 
@@ -63,12 +66,6 @@ function App() {
         onGoHome={goHome}
       />
 
-      <DebugPanel
-        gameState={gameState}
-        myCards={myCards}
-        playerId={playerId}
-        roomCode={roomCode}
-      />
 
       <ChatBox
         messages={chatMessages}
@@ -81,6 +78,8 @@ function App() {
           {error}
         </div>
       )}
+
+      <RulesPanel />
     </>
   );
 }
