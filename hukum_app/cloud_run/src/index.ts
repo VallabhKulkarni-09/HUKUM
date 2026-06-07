@@ -272,31 +272,109 @@ app.post('/api/leave-room', verifyToken, async (req, res) => {
   const engine = rooms.get(code?.toUpperCase());
   if (engine) {
     engine.removePlayer(uid);
-    await db.ref(`rooms/${code}/hands/${uid}`).remove();
+    if (db) await db.ref(`rooms/${code}/hands/${uid}`).remove();
     await syncState(code, engine);
     if (engine.getPlayerCount() === 0) rooms.delete(code);
   }
   res.json({ success: true });
 });
 
-// === BOT SIMULATION (for testing) ===
-// Adds 3 bots to a room, makes them ready, and auto-plays for them
+// === CHAT ===
+const chatHistory = new Map<string, Array<{ sender: string; message: string; timestamp: number }>>();
+
+app.post('/api/chat', verifyToken, async (req, res) => {
+  const uid = (req as any).uid;
+  const { code, message } = req.body;
+  const engine = rooms.get(code?.toUpperCase());
+  if (!engine) return res.status(404).json({ error: 'Room not found' });
+
+  const player = engine.getPublicState().players.find(p => p.id === uid);
+  const senderName = player?.name || 'Unknown';
+
+  const chatMsg = { sender: senderName, message, timestamp: Date.now() };
+  if (!chatHistory.has(code)) chatHistory.set(code, []);
+  chatHistory.get(code)!.push(chatMsg);
+
+  // Sync to Firebase
+  if (db) await db.ref(`rooms/${code}/chat`).push(chatMsg);
+
+  // Let AI respond if message ends with @ai or mentions AI
+  if (message.toLowerCase().includes('@ai') || message.toLowerCase().includes('ai ')) {
+    aiChatReply(code, chatHistory.get(code)!);
+  }
+
+  res.json({ success: true });
+});
+
+async function aiChatReply(code: string, history: Array<{ sender: string; message: string }>) {
+  try {
+    const recentChat = history.slice(-10).map(m => `${m.sender}: ${m.message}`).join('\n');
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 5000);
+
+    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${process.env.GEMINI_API_KEY || 'AIzaSyCjmewiB7QxhJ3dHwgQk0g2alCVjNQ8Y18'}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        systemInstruction: { parts: [{ text: 'You are a friendly AI player in a Hukum card game. Keep responses short (1-2 sentences), fun, and game-related. You can trash-talk playfully, comment on the game, or answer questions about strategy.' }] },
+        contents: [{ parts: [{ text: `Chat history:\n${recentChat}\n\nReply as "AI":` }] }],
+        generationConfig: { temperature: 0.8, maxOutputTokens: 50 },
+      }),
+      signal: controller.signal,
+    });
+
+    clearTimeout(timeout);
+    const data = await res.json() as any;
+    const reply = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+
+    if (reply) {
+      const aiMsg = { sender: 'AI', message: reply, timestamp: Date.now() };
+      if (!chatHistory.has(code)) chatHistory.set(code, []);
+      chatHistory.get(code)!.push(aiMsg);
+      if (db) await db.ref(`rooms/${code}/chat`).push(aiMsg);
+    }
+  } catch (e) { console.error('AI chat error:', e); }
+}
+
+// === BOT / AI MANAGEMENT ===
+
+// Add AI to a specific seat
+app.post('/api/add-bot', verifyToken, async (req, res) => {
+  const { code, seat } = req.body;
+  const engine = rooms.get(code?.toUpperCase());
+  if (!engine) return res.status(404).json({ error: 'Room not found' });
+
+  const seatNum = parseInt(seat);
+  if (isNaN(seatNum) || seatNum < 0 || seatNum > 3) return res.status(400).json({ error: 'Invalid seat (0-3)' });
+
+  const botNames = ['AI Alpha', 'AI Beta', 'AI Gamma', 'AI Delta'];
+  const id = `bot-seat-${seatNum}`;
+  const team = seatNum % 2 === 0 ? 'A' : 'B';
+  const player = engine.addPlayer(id, botNames[seatNum], team);
+  if (!player) return res.status(400).json({ error: 'Seat taken or team full' });
+
+  if (engine.getPlayerCount() === 4) engine.startReadyCheck();
+  await syncState(code, engine);
+  await syncHands(code, engine);
+  res.json({ success: true, bot: id, seat: seatNum });
+});
+
+// Fill all empty seats with AI
 app.post('/api/add-bots', verifyToken, async (req, res) => {
   const { code } = req.body;
   const engine = rooms.get(code?.toUpperCase());
   if (!engine) return res.status(404).json({ error: 'Room not found' });
 
-  const botNames = ['Bot Alice', 'Bot Bob', 'Bot Carol'];
+  const botNames = ['AI Alpha', 'AI Beta', 'AI Gamma', 'AI Delta'];
   const botIds: string[] = [];
-  for (const name of botNames) {
-    const id = `bot-${name.replace(' ', '-').toLowerCase()}`;
-    const player = engine.addPlayer(id, name);
+  for (let seat = 0; seat < 4; seat++) {
+    const id = `bot-seat-${seat}`;
+    const team = seat % 2 === 0 ? 'A' : 'B';
+    const player = engine.addPlayer(id, botNames[seat], team);
     if (player) botIds.push(id);
   }
 
-  // Auto start ready check
   if (engine.getPlayerCount() === 4) engine.startReadyCheck();
-
   await syncState(code, engine);
   await syncHands(code, engine);
   res.json({ success: true, bots: botIds });

@@ -5,6 +5,7 @@ import '../services/game_provider.dart';
 import '../widgets/trick_area.dart';
 import '../widgets/player_seat.dart';
 import '../widgets/trump_selector.dart';
+import '../widgets/chat_panel.dart';
 
 class GameScreen extends StatelessWidget {
   const GameScreen({super.key});
@@ -64,6 +65,8 @@ class GameScreen extends StatelessWidget {
                 _PlayerHand(hand: provider.hand, provider: provider, state: state),
               ],
             ),
+            // Chat panel overlay
+            const ChatPanel(),
           ],
         ),
       ),
@@ -117,7 +120,7 @@ class _InfoBar extends StatelessWidget {
           _ScorePill(team: 'A', score: state.scoreA),
           const SizedBox(width: 4),
           _ScorePill(team: 'B', score: state.scoreB),
-          IconButton(icon: const Icon(Icons.smart_toy, size: 16), color: Colors.white54, onPressed: () => provider.addBots(), padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 28)),
+          const SizedBox(width: 4),
           IconButton(icon: const Icon(Icons.exit_to_app, size: 16), color: Colors.white54, onPressed: () => provider.leaveRoom(), padding: EdgeInsets.zero, constraints: const BoxConstraints(minWidth: 28)),
         ],
       ),
@@ -354,32 +357,67 @@ class _ReadyOverlay extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final seats = List.generate(4, (i) => state.players.where((p) => p.seat == i).firstOrNull);
+
     return Container(
       color: Colors.black.withValues(alpha: 0.6),
       child: Center(
         child: Container(
-          padding: const EdgeInsets.all(28),
+          padding: const EdgeInsets.all(24),
+          margin: const EdgeInsets.symmetric(horizontal: 24),
           decoration: BoxDecoration(color: const Color(0xFF1A1A2E).withValues(alpha: 0.95), borderRadius: BorderRadius.circular(18), border: Border.all(color: Colors.white.withValues(alpha: 0.1))),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text('Players (${state.players.length}/4)', style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold)),
+              Text('Players (${state.players.length}/4)', style: const TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold)),
               const SizedBox(height: 16),
-              ...state.players.map((p) => Padding(
-                padding: const EdgeInsets.symmetric(vertical: 4),
-                child: Row(mainAxisSize: MainAxisSize.min, children: [
-                  Container(width: 18, height: 18, decoration: BoxDecoration(color: p.team == 'A' ? const Color(0xFF4A9EFF) : const Color(0xFFFF6B6B), borderRadius: BorderRadius.circular(4)),
-                    child: Center(child: Text(p.team, style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold)))),
-                  const SizedBox(width: 8),
-                  Text(p.name, style: const TextStyle(color: Colors.white, fontSize: 14)),
-                  const SizedBox(width: 8),
-                  Icon(p.isReady ? Icons.check_circle : Icons.radio_button_unchecked, color: p.isReady ? const Color(0xFF4CAF50) : Colors.white38, size: 16),
-                ]),
-              )),
-              const SizedBox(height: 20),
+              // Seat list with AI assign buttons
+              ...List.generate(4, (i) {
+                final player = seats[i];
+                final team = i % 2 == 0 ? 'A' : 'B';
+                final teamColor = team == 'A' ? const Color(0xFF4A9EFF) : const Color(0xFFFF6B6B);
+                return Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: Row(
+                    children: [
+                      Container(width: 20, height: 20, decoration: BoxDecoration(color: teamColor, borderRadius: BorderRadius.circular(4)),
+                        child: Center(child: Text(team, style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold)))),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: player != null
+                          ? Row(children: [
+                              Text(player.name, style: const TextStyle(color: Colors.white, fontSize: 13)),
+                              const Spacer(),
+                              Icon(player.isReady ? Icons.check_circle : Icons.radio_button_unchecked, color: player.isReady ? const Color(0xFF4CAF50) : Colors.white38, size: 16),
+                            ])
+                          : Row(children: [
+                              Text('Seat ${i + 1} — empty', style: TextStyle(color: Colors.white.withValues(alpha: 0.4), fontSize: 13)),
+                              const Spacer(),
+                              GestureDetector(
+                                onTap: () => provider.addBot(i),
+                                child: Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                  decoration: BoxDecoration(color: const Color(0xFFD4A843).withValues(alpha: 0.2), borderRadius: BorderRadius.circular(8), border: Border.all(color: const Color(0xFFD4A843).withValues(alpha: 0.5))),
+                                  child: const Text('+ AI', style: TextStyle(color: Color(0xFFD4A843), fontSize: 11, fontWeight: FontWeight.bold)),
+                                ),
+                              ),
+                            ]),
+                      ),
+                    ],
+                  ),
+                );
+              }),
+              const SizedBox(height: 16),
+              // Fill all with AI button
+              if (state.players.length < 4)
+                TextButton(
+                  onPressed: () => provider.addBots(),
+                  child: const Text('Fill all with AI', style: TextStyle(color: Color(0xFFD4A843), fontSize: 12)),
+                ),
+              const SizedBox(height: 12),
               ElevatedButton(
-                onPressed: () => provider.setReady(),
-                style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF4CAF50), foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 14), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+                onPressed: state.players.length == 4 ? () => provider.setReady() : null,
+                style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF4CAF50), disabledBackgroundColor: Colors.grey.shade800, foregroundColor: Colors.white, padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 14), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
                 child: const Text('READY', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, letterSpacing: 1)),
               ),
             ],

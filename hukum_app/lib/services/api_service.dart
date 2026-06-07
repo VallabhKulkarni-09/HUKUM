@@ -46,8 +46,16 @@ class ApiService {
     await _post('/api/leave-room', {'code': code});
   }
 
+  Future<void> sendChat(String code, String message) async {
+    await _post('/api/chat', {'code': code, 'message': message});
+  }
+
   Future<void> addBots(String code) async {
     await _post('/api/add-bots', {'code': code});
+  }
+
+  Future<void> addBot(String code, int seat) async {
+    await _post('/api/add-bot', {'code': code, 'seat': seat});
   }
 
   Future<void> botAuto(String code) async {
