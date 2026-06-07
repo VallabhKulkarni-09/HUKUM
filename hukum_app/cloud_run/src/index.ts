@@ -1,41 +1,38 @@
 import express from 'express';
 import cors from 'cors';
-import { initializeApp, cert, type ServiceAccount } from 'firebase-admin/app';
+import { initializeApp, cert, applicationDefault, type ServiceAccount } from 'firebase-admin/app';
 import { getDatabase } from 'firebase-admin/database';
 import { getAuth } from 'firebase-admin/auth';
 import { GameEngine } from './game.js';
 
 // Init Firebase Admin
-const serviceAccount = process.env.FIREBASE_SERVICE_ACCOUNT
-  ? JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT)
-  : null;
+const DATABASE_URL = process.env.DATABASE_URL || 'https://hukum-98b72-default-rtdb.asia-southeast1.firebasedatabase.app';
 
 let firebaseApp: any;
 let db: any;
 let auth: any;
 
-if (serviceAccount) {
-  firebaseApp = initializeApp({
-    credential: cert(serviceAccount as ServiceAccount),
-    databaseURL: process.env.DATABASE_URL || `https://hukum-98b72-default-rtdb.asia-southeast1.firebasedatabase.app`,
-  });
+try {
+  if (process.env.FIREBASE_SERVICE_ACCOUNT) {
+    const sa = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT);
+    firebaseApp = initializeApp({ credential: cert(sa as ServiceAccount), databaseURL: DATABASE_URL });
+  } else {
+    // Try file for local dev
+    const fs = await import('fs');
+    const path = new URL('../service-account.json', import.meta.url).pathname;
+    if (fs.existsSync(path)) {
+      const sa = JSON.parse(fs.readFileSync(path, 'utf-8'));
+      firebaseApp = initializeApp({ credential: cert(sa as ServiceAccount), databaseURL: DATABASE_URL });
+    } else {
+      // Cloud Run: use Application Default Credentials
+      firebaseApp = initializeApp({ credential: applicationDefault(), databaseURL: DATABASE_URL });
+    }
+  }
   db = getDatabase(firebaseApp);
   auth = getAuth(firebaseApp);
-} else {
-  // Local dev mode - read service account from file
-  const fs = await import('fs');
-  const path = new URL('./service-account.json', import.meta.url).pathname.replace('/src/', '/');
-  if (fs.existsSync(path)) {
-    const sa = JSON.parse(fs.readFileSync(path, 'utf-8'));
-    firebaseApp = initializeApp({
-      credential: cert(sa as ServiceAccount),
-      databaseURL: `https://hukum-98b72-default-rtdb.asia-southeast1.firebasedatabase.app`,
-    });
-    db = getDatabase(firebaseApp);
-    auth = getAuth(firebaseApp);
-  } else {
-    console.log('⚠️  No service account found. Running without Firebase (local test mode).');
-  }
+  console.log('✅ Firebase initialized');
+} catch (e) {
+  console.log('⚠️  Firebase init failed:', e);
 }
 
 // In-memory game rooms
@@ -291,12 +288,10 @@ app.post('/api/chat', verifyToken, async (req, res) => {
   if (!uid.startsWith('bot-')) {
     const gameEngine = rooms.get(code?.toUpperCase())!;
     const botPlayers = gameEngine.getPublicState().players.filter(p => p.id.startsWith('bot-'));
-    // Only 1-2 bots reply per message (random selection)
     const shuffled = botPlayers.sort(() => Math.random() - 0.5);
     const responders = shuffled.slice(0, Math.random() < 0.4 ? 2 : 1);
-    for (const bot of responders) {
-      aiBotChatDecision(code, bot.id, bot.name, bot.team, gameEngine);
-    }
+    // Await so Cloud Run doesn't kill the process
+    await Promise.all(responders.map(bot => aiBotChatDecision(code, bot.id, bot.name, bot.team, gameEngine)));
   }
 
   res.json({ success: true });
@@ -346,7 +341,12 @@ async function aiBotChatDecision(code: string, botId: string, botName: string, t
       await new Promise(resolve => setTimeout(resolve, 500 + Math.random() * 2500));
       const aiMsg = { sender: botName, message: clean, timestamp: Date.now() };
       chatHistory.get(code)!.push(aiMsg);
-      if (db) await db.ref(`rooms/${code}/chat`).push(aiMsg);
+      if (db) {
+        await db.ref(`rooms/${code}/chat`).push(aiMsg);
+        console.log(`[Chat] ${botName} sent: "${clean}"`);
+      } else {
+        console.log(`[Chat] ${botName} would say: "${clean}" (no db)`);
+      }
     }
   } catch (e) { /* silently skip */ }
 }
