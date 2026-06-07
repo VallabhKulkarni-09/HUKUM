@@ -1,0 +1,17 @@
+# Flutter
+.dart_tool/
+.packages
+build/
+*.iml
+.idea/
+.vscode/
+*.lock
+
+# Firebase
+android/app/google-services.json
+ios/Runner/GoogleService-Info.plist
+
+# Cloud Run secrets
+cloud_run/service-account.json
+cloud_run/node_modules/
+cloud_run/dist/
