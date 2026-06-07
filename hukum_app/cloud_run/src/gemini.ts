@@ -54,9 +54,8 @@ export async function getGeminiMove(context: GameContext): Promise<string | null
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: { temperature: 0.3, maxOutputTokens: 20 },
+        contents: [{ parts: [{ text: SYSTEM_PROMPT + '\n\n' + prompt }] }],
+        generationConfig: { temperature: 0.3, maxOutputTokens: 100, thinkingConfig: { thinkingBudget: 0 } },
       }),
       signal: controller.signal,
     });
@@ -107,9 +106,8 @@ export async function getGeminiHukumChoice(hand: Card[]): Promise<Suit> {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        systemInstruction: { parts: [{ text: SYSTEM_PROMPT }] },
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: { temperature: 0.2, maxOutputTokens: 10 },
+        contents: [{ parts: [{ text: SYSTEM_PROMPT + '\n\n' + prompt }] }],
+        generationConfig: { temperature: 0.2, maxOutputTokens: 100, thinkingConfig: { thinkingBudget: 0 } },
       }),
       signal: controller.signal,
     });

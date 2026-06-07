@@ -222,26 +222,15 @@ app.post('/api/action', verifyToken, async (req, res) => {
       break;
     }
     case 'PLAY_CARD': {
-      // If previous trick is complete (winnerId set), clear it first
+      // If previous trick is complete (winnerId set), clear it first and sync
       const prevState = engine.getPublicState();
       if (prevState.currentTrick.winnerId) {
         engine.clearTrick();
+        await syncState(code, engine);
       }
 
       const cardResult = engine.playCard(uid, data?.id || `${data?.suit}_${data?.rank}`);
       result = { ...result, ...cardResult };
-
-      // If trick just completed, sync the full trick, pause, then clear
-      if (cardResult.trickComplete) {
-        await syncState(code, engine);
-        await syncHands(code, engine);
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        // Clear trick for next round (unless hand ended)
-        const afterState = engine.getPublicState();
-        if (afterState.phase === 'TRICK_PLAY' || afterState.phase === 'VAKKAI_PLAY') {
-          engine.clearTrick();
-        }
-      }
 
       // Auto-play bots
       autoBotPlay(engine, code);
@@ -298,42 +287,68 @@ app.post('/api/chat', verifyToken, async (req, res) => {
   // Sync to Firebase
   if (db) await db.ref(`rooms/${code}/chat`).push(chatMsg);
 
-  // Let AI respond if message ends with @ai or mentions AI
-  if (message.toLowerCase().includes('@ai') || message.toLowerCase().includes('ai ')) {
-    aiChatReply(code, chatHistory.get(code)!);
+  // Each AI bot independently decides whether to reply (only for human messages)
+  if (!uid.startsWith('bot-')) {
+    const gameEngine = rooms.get(code?.toUpperCase())!;
+    const botPlayers = gameEngine.getPublicState().players.filter(p => p.id.startsWith('bot-'));
+    // Only 1-2 bots reply per message (random selection)
+    const shuffled = botPlayers.sort(() => Math.random() - 0.5);
+    const responders = shuffled.slice(0, Math.random() < 0.4 ? 2 : 1);
+    for (const bot of responders) {
+      aiBotChatDecision(code, bot.id, bot.name, bot.team, gameEngine);
+    }
   }
 
   res.json({ success: true });
 });
 
-async function aiChatReply(code: string, history: Array<{ sender: string; message: string }>) {
+const AI_PERSONAS: Record<string, string> = {
+  'AI Alpha': 'You are Alpha — a desi guy who plays cards at chai tapri. You speak casual Hinglish (mix of Hindi and English). Example: "Bhai tu toh gaya", "Kya cards aaye hai mast", "Tera koi chance nahi".',
+  'AI Beta': 'You are Beta — the quiet smart one in friend group. You speak casual Hinglish. Short and witty. Example: "Hmm interesting", "Dekh lenge", "Ye toh easy hai".',
+  'AI Gamma': 'You are Gamma — the hype man of the group. Gets excited easily. Speaks casual Hinglish. Example: "BHAI KHAAA GAYE!", "Maza aa gaya!", "LET\'S GOOO".',
+  'AI Delta': 'You are Delta — the trash talker friend. Roasts everyone lovingly. Casual Hinglish. Example: "Bhai tujhe cards khelna aata hai?", "Ye kya chutiyapa tha", "Aukaat dikhadi".',
+};
+
+async function aiBotChatDecision(code: string, botId: string, botName: string, team: string, engine: GameEngine) {
   try {
-    const recentChat = history.slice(-10).map(m => `${m.sender}: ${m.message}`).join('\n');
+    const history = chatHistory.get(code) || [];
+    const recentChat = history.slice(-8).map(m => `${m.sender}: ${m.message}`).join('\n');
+    const hand = engine.getPlayerHand(botId);
+    const state = engine.getPublicState();
+    const handStr = hand.map(c => c.id).join(', ');
+
+    const persona = AI_PERSONAS[botName] || AI_PERSONAS['AI Alpha'];
+    const gameContext = `Your cards: [${handStr}]. Trump: ${state.trumpSuit || 'none'}. Score A:${state.score.A} B:${state.score.B}. Your team: ${team}. Phase: ${state.phase}.`;
+
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 5000);
+    const apiKey = process.env.GEMINI_API_KEY || 'AIzaSyCjmewiB7QxhJ3dHwgQk0g2alCVjNQ8Y18';
 
-    const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${process.env.GEMINI_API_KEY || 'AIzaSyCjmewiB7QxhJ3dHwgQk0g2alCVjNQ8Y18'}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+    const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${apiKey}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        systemInstruction: { parts: [{ text: 'You are a friendly AI player in a Hukum card game. Keep responses short (1-2 sentences), fun, and game-related. You can trash-talk playfully, comment on the game, or answer questions about strategy.' }] },
-        contents: [{ parts: [{ text: `Chat history:\n${recentChat}\n\nReply as "AI":` }] }],
-        generationConfig: { temperature: 0.8, maxOutputTokens: 50 },
+        contents: [{ parts: [{ text: `${persona}\n\nGame context: ${gameContext}\n\nRULES:\n- Reply like you're texting in a friend group chat\n- Use Hinglish (Hindi+English mix), slang, abbreviations\n- Keep it 3-8 words MAX. No full formal sentences.\n- Match the vibe: funny, roast, hype, or chill\n- Say SKIP if the message doesn't need a reply from you\n- Don't reveal your cards\n\nChat:\n${recentChat}\n\n${botName}:` }] }],
+        generationConfig: { temperature: 0.8, maxOutputTokens: 200, thinkingConfig: { thinkingBudget: 0 } },
       }),
       signal: controller.signal,
     });
 
     clearTimeout(timeout);
-    const data = await res.json() as any;
+    const data = await r.json() as any;
+    console.log(`[Chat] ${botName} raw response:`, JSON.stringify(data?.candidates?.[0]?.content));
     const reply = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
 
-    if (reply) {
-      const aiMsg = { sender: 'AI', message: reply, timestamp: Date.now() };
-      if (!chatHistory.has(code)) chatHistory.set(code, []);
+    if (reply && !reply.toUpperCase().includes('SKIP') && reply.length > 2 && reply.length < 120) {
+      // Clean up: remove leading quotes, asterisks, bot name prefix
+      let clean = reply.replace(/^["*]+|["*]+$/g, '').replace(new RegExp(`^${botName}:\\s*`, 'i'), '').trim();
+      if (clean.length < 2) return;
+      // Random delay to feel natural (0.5-3s)
+      await new Promise(resolve => setTimeout(resolve, 500 + Math.random() * 2500));
+      const aiMsg = { sender: botName, message: clean, timestamp: Date.now() };
       chatHistory.get(code)!.push(aiMsg);
       if (db) await db.ref(`rooms/${code}/chat`).push(aiMsg);
     }
-  } catch (e) { console.error('AI chat error:', e); }
+  } catch (e) { /* silently skip */ }
 }
 
 // === BOT / AI MANAGEMENT ===
@@ -344,7 +359,7 @@ app.post('/api/add-bot', verifyToken, async (req, res) => {
   const engine = rooms.get(code?.toUpperCase());
   if (!engine) return res.status(404).json({ error: 'Room not found' });
 
-  const seatNum = parseInt(seat);
+  const seatNum = typeof seat === 'number' ? seat : parseInt(seat);
   if (isNaN(seatNum) || seatNum < 0 || seatNum > 3) return res.status(400).json({ error: 'Invalid seat (0-3)' });
 
   const botNames = ['AI Alpha', 'AI Beta', 'AI Gamma', 'AI Delta'];

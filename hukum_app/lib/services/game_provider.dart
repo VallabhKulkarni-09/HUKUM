@@ -130,7 +130,7 @@ class GameProvider extends ChangeNotifier {
 
   Future<void> addBot(int seat) async {
     if (_roomCode == null) return;
-    try { await _api.addBot(_roomCode!, seat); } catch (e) { _error = e.toString(); notifyListeners(); }
+    try { await _api.addBot(_roomCode!, seat); } catch (e) { _error = e.toString(); debugPrint('addBot error: $e'); notifyListeners(); }
   }
 
   Future<void> botAuto() async {

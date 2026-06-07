@@ -21,7 +21,7 @@ class _ChatPanelState extends State<ChatPanel> {
 
     return Positioned(
       right: 8,
-      bottom: 8,
+      bottom: 120,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.end,
         mainAxisSize: MainAxisSize.min,
@@ -59,13 +59,15 @@ class _ChatPanelState extends State<ChatPanel> {
                       itemCount: messages.length,
                       itemBuilder: (_, i) {
                         final msg = messages[i];
-                        final isAI = msg['sender'] == 'AI';
+                        final sender = msg['sender'] ?? '';
+                        final isBot = sender.startsWith('AI ');
+                        final color = isBot ? const Color(0xFFD4A843) : const Color(0xFF4A9EFF);
                         return Padding(
                           padding: const EdgeInsets.only(bottom: 4),
                           child: Row(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Text('${msg['sender']}: ', style: TextStyle(color: isAI ? const Color(0xFFD4A843) : const Color(0xFF4A9EFF), fontWeight: FontWeight.bold, fontSize: 11)),
+                              Text('$sender: ', style: TextStyle(color: color, fontWeight: FontWeight.bold, fontSize: 11)),
                               Expanded(child: Text(msg['message'] ?? '', style: const TextStyle(color: Colors.white70, fontSize: 11))),
                             ],
                           ),

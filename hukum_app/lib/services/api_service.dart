@@ -6,8 +6,9 @@ class ApiService {
   // TODO: Replace with your Cloud Run URL after deployment
   static const String _baseUrl = String.fromEnvironment(
     'API_URL',
-    defaultValue: 'http://10.0.2.2:8080', // Android emulator → host machine localhost
+    defaultValue: 'https://hukum-server-512365624933.us-central1.run.app',
   );
+  // For local dev: flutter run --dart-define=API_URL=http://10.0.2.2:8080
 
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
