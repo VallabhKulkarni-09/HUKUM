@@ -82,6 +82,8 @@ async function syncHands(roomCode: string, engine: GameEngine) {
 }
 
 // Generate 6-letter room code
+import { getGeminiMove, getGeminiHukumChoice } from './gemini.js';
+
 function generateCode(): string {
   const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
   return Array.from({ length: 6 }, () => chars[Math.floor(Math.random() * 26)]).join('');
@@ -106,19 +108,32 @@ async function autoBotPlay(engine: GameEngine, roomCode: string) {
     } else if (phase === 'HUKUM_SELECTION') {
       await new Promise(resolve => setTimeout(resolve, 1000));
       const hand = engine.getPlayerHand(turn);
-      engine.chooseHukum(turn, hand[0]?.suit || 'SPADE');
+      const suit = await getGeminiHukumChoice(hand);
+      engine.chooseHukum(turn, suit);
     } else if (phase === 'TRICK_PLAY' || phase === 'VAKKAI_PLAY') {
-      // If previous trick just completed, show it then clear
       if (state.currentTrick.winnerId) {
         await new Promise(resolve => setTimeout(resolve, 1500));
         engine.clearTrick();
         await syncState(roomCode, engine);
         await new Promise(resolve => setTimeout(resolve, 500));
       }
-      // Bot plays a card
       await new Promise(resolve => setTimeout(resolve, 1200));
       const hand = engine.getPlayerHand(turn);
-      for (const card of hand) { if (engine.playCard(turn, card.id).success) break; }
+      const botPlayer = engine.getPublicState().players.find(p => p.id === turn);
+      const geminiCard = await getGeminiMove({
+        hand,
+        phase,
+        trumpSuit: state.trumpSuit,
+        leadSuit: state.currentTrick.leadSuit,
+        currentTrickCards: state.currentTrick.cards,
+        trickCounts: state.trickCounts as { A: number; B: number },
+        myTeam: botPlayer?.team || 'B',
+        myId: turn,
+      });
+      let played = false;
+      if (geminiCard) played = engine.playCard(turn, geminiCard).success;
+      if (!played) { for (const card of hand) { if (engine.playCard(turn, card.id).success) { played = true; break; } } }
+      if (!played) break;
     } else if (phase === 'HAND_END') {
       await new Promise(resolve => setTimeout(resolve, 3000));
       engine.startNextHand();
