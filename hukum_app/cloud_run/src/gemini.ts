@@ -1,6 +1,6 @@
 import type { Card, Suit, GamePhase, PlayerId } from './types.js';
 
-const GEMINI_API_KEY = process.env.GEMINI_API_KEY || 'AIzaSyCjmewiB7QxhJ3dHwgQk0g2alCVjNQ8Y18';
+const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
 const MODEL = 'gemini-3.5-flash';
 const URL = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${GEMINI_API_KEY}`;
 
@@ -63,7 +63,9 @@ export async function getGeminiMove(context: GameContext): Promise<string | null
     clearTimeout(timeout);
 
     const data = await res.json() as any;
-    const text = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+    if (data?.error) { console.log(`[Gemini Move] API error:`, data.error.message); return null; }
+    const parts = data?.candidates?.[0]?.content?.parts;
+    const text = parts?.find((p: any) => p.text)?.text?.trim();
 
     if (text && hand.some(c => c.id === text)) {
       return text;
@@ -115,7 +117,9 @@ export async function getGeminiHukumChoice(hand: Card[]): Promise<Suit> {
     clearTimeout(timeout);
 
     const data = await res.json() as any;
-    const text = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim()?.toUpperCase();
+    if (data?.error) { console.log(`[Gemini Hukum] API error:`, data.error.message); return null as any; }
+    const parts = data?.candidates?.[0]?.content?.parts;
+    const text = parts?.find((p: any) => p.text)?.text?.trim()?.toUpperCase();
 
     if (['SPADE', 'HEART', 'DIAMOND', 'CLUB'].includes(text)) {
       return text as Suit;

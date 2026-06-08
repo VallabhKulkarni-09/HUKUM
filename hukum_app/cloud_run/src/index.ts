@@ -317,7 +317,7 @@ async function aiBotChatDecision(code: string, botId: string, botName: string, t
 
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 5000);
-    const apiKey = process.env.GEMINI_API_KEY || 'AIzaSyCjmewiB7QxhJ3dHwgQk0g2alCVjNQ8Y18';
+    const apiKey = process.env.GEMINI_API_KEY || '';
 
     const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${apiKey}`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -330,8 +330,10 @@ async function aiBotChatDecision(code: string, botId: string, botName: string, t
 
     clearTimeout(timeout);
     const data = await r.json() as any;
-    console.log(`[Chat] ${botName} raw response:`, JSON.stringify(data?.candidates?.[0]?.content));
-    const reply = data?.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
+    if (data?.error) { console.log(`[Chat] ${botName} API error:`, data.error.message); return; }
+    const parts = data?.candidates?.[0]?.content?.parts;
+    const reply = parts?.find((p: any) => p.text)?.text?.trim();
+    console.log(`[Chat] ${botName} reply: "${reply}"`);
 
     if (reply && !reply.toUpperCase().includes('SKIP') && reply.length > 2 && reply.length < 120) {
       // Clean up: remove leading quotes, asterisks, bot name prefix
