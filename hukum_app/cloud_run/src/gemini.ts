@@ -1,8 +1,11 @@
 import type { Card, Suit, GamePhase, PlayerId } from './types.js';
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY || '';
+const GEMINI_KEYS = [GEMINI_API_KEY, process.env.GEMINI_API_KEY_2 || ''].filter(Boolean);
+let keyIndex = 0;
+function getGeminiKey(): string { const k = GEMINI_KEYS[keyIndex % GEMINI_KEYS.length]; keyIndex++; return k; }
 const MODEL = 'gemini-3.5-flash';
-const URL = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${GEMINI_API_KEY}`;
+function getUrl() { return `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${getGeminiKey()}`; }
 
 const SYSTEM_PROMPT = `You are an expert Hukum (Court Piece/Rang) card game AI player.
 
@@ -50,7 +53,7 @@ export async function getGeminiMove(context: GameContext): Promise<string | null
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 5000);
 
-    const res = await fetch(URL, {
+    const res = await fetch(getUrl(), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -104,7 +107,7 @@ export async function getGeminiHukumChoice(hand: Card[]): Promise<Suit> {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 5000);
 
-    const res = await fetch(URL, {
+    const res = await fetch(getUrl(), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({

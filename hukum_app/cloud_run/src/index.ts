@@ -318,8 +318,11 @@ async function aiBotChatDecision(code: string, botId: string, botName: string, t
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 5000);
     const apiKey = process.env.GEMINI_API_KEY || '';
+    const apiKey2 = process.env.GEMINI_API_KEY_2 || '';
+    const keys = [apiKey, apiKey2].filter(Boolean);
+    const key = keys[Math.floor(Math.random() * keys.length)];
 
-    const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${apiKey}`, {
+    const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key=${key}`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         contents: [{ parts: [{ text: `${persona}\n\nGame context: ${gameContext}\n\nRULES:\n- Reply like you're texting in a friend group chat\n- Use Hinglish (Hindi+English mix), slang, abbreviations\n- Keep it 3-8 words MAX. No full formal sentences.\n- Match the vibe: funny, roast, hype, or chill\n- Say SKIP if the message doesn't need a reply from you\n- Don't reveal your cards\n\nChat:\n${recentChat}\n\n${botName}:` }] }],
