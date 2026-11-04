@@ -92,7 +92,6 @@ export function useWebSocket(): UseWebSocketReturn {
                 setRoomCode(message.roomCode);
                 setPlayerId(message.playerId);
                 setSeat(message.seat);
-                playSound('playerJoin');
                 break;
 
             case 'GAME_STATE':
@@ -101,7 +100,6 @@ export function useWebSocket(): UseWebSocketReturn {
 
             case 'PRIVATE_CARDS':
                 setMyCards(message.cards);
-                playSound('cardDeal');
                 break;
 
             case 'CHAT_MESSAGE':
@@ -111,7 +109,6 @@ export function useWebSocket(): UseWebSocketReturn {
                     text: message.text,
                     timestamp: new Date(),
                 }]);
-                playSound('notification');
                 break;
 
             case 'HAND_END':
@@ -245,7 +242,6 @@ export function useWebSocket(): UseWebSocketReturn {
 
     const declareVakkai = useCallback(() => {
         send({ type: 'DECLARE_VAKKAI' });
-        playSound('vakkaiDeclare');
     }, [send]);
 
     const chooseHukum = useCallback((suit: Suit) => {

@@ -5,7 +5,7 @@
 // ============================================
 
 import { useEffect, useLayoutEffect, useState, useSyncExternalStore } from 'react';
-import type { PublicGameState, PublicPlayer, Card, PlayerId, Suit, TeamId } from '../types';
+import type { PublicGameState, PublicPlayer, Card, PlayerId, Suit, TeamId, TrickCard } from '../types';
 import type { HandResult } from '../hooks/useWebSocket';
 import { formatScore, getTrickWinnerId } from '../gameUtils';
 import { TableScene, Loader } from './scene/Scene';
@@ -18,7 +18,7 @@ import { WaitingRoom } from './WaitingRoom';
 import { AvatarFrame } from './player/AvatarFrame';
 import { Modal } from './ui/Modal';
 import { CloudIcon, GearIcon, SmileIcon, TrophyIcon } from './ui/Icons';
-import { playSound } from '../audio/soundManager';
+import { useSeatSounds, useTableSounds } from './useTableSounds';
 import { DealDirector, selectCount, selectHand, type DealSnapshot } from './deal/DealDirector';
 import { DealLayer } from './deal/AnimationController';
 import './GameTable.css';
@@ -49,6 +49,7 @@ type SeatPos = 'bottom' | 'left' | 'top' | 'right';
 // Same seat layout as before the redesign: next seat in turn order appears on the right
 const POSITIONS: SeatPos[] = ['bottom', 'right', 'top', 'left'];
 const TEAM_NAME: Record<TeamId, string> = { A: 'Alpha', B: 'Bravo' };
+const NO_TRICK: TrickCard[] = [];
 
 export function GameTable(props: GameTableProps) {
     const { gameState, myCards, playerId } = props;
@@ -61,6 +62,9 @@ export function GameTable(props: GameTableProps) {
         director.observe(gameState, myCards, playerId);
     }, [director, gameState, myCards, playerId]);
     useEffect(() => () => director.dispose(), [director]);
+
+    const inLobby = gameState.phase === 'WAITING_FOR_PLAYERS' || gameState.phase === 'READY_CHECK';
+    useSeatSounds(gameState.players.length, inLobby);
 
     if (gameState.phase === 'WAITING_FOR_PLAYERS' || gameState.phase === 'READY_CHECK') {
         return (
@@ -132,17 +136,6 @@ function Table({
         return team === gameState.trumpTeam ? 5 : 4;
     };
 
-    // ---- Sounds (unchanged from before the redesign) ----
-    useEffect(() => {
-        if (canPlay) playSound('turnNotify');
-    }, [canPlay]);
-
-    useEffect(() => {
-        if (phase === 'HAND_END') playSound('trickWin');
-        if (phase === 'MATCH_END') playSound(score[myTeam] > 0 ? 'matchWin' : 'matchLose');
-        // Only react to phase changes
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [phase]);
 
     // ---- Status text ----
     const status = (() => {
@@ -189,6 +182,19 @@ function Table({
     const showDecision = !dealing && (
         (phase === 'VAKKAI_DECISION' && isMyTurn) ||
         (phase === 'HUKUM_SELECTION' && gameState.trumpChooserId === playerId));
+
+    useTableSounds({
+        phase,
+        playerId,
+        myTeam,
+        trickCards: dealing ? NO_TRICK : currentTrick.cards,
+        trickCounts,
+        trumpSuit,
+        vakkaiActive: vakkai.active,
+        myMove: (canPlay || showDecision) && sittingOutId !== playerId,
+        handResult: lastHandResult,
+        matchWon: score[myTeam] > 0,
+    });
 
     const opponents = gameState.players.filter(p => p.id !== playerId);
 

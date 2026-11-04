@@ -85,7 +85,8 @@ export function shuffleMotion(cards: HTMLElement[], cardW: number): gsap.core.Ti
     const start = TIMING.separate + 0.04;
     for (let p = 0; p < TIMING.passes; p++) {
         const t0 = start + p * TIMING.passGap;
-        tl.call(() => playSound('cardShuffle'), undefined, t0);
+        // One riffle recording covers all passes
+        if (p === 0) tl.call(() => playSound('cardShuffle'), undefined, t0 - 0.05);
         interleaved.forEach(({ el, fromLeft }, k) => {
             // Pass 0 sends left cards right; each pass reverses
             const side = (fromLeft ? 1 : -1) * (p % 2 === 0 ? 1 : -1);

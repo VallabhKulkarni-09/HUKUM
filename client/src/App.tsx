@@ -2,7 +2,7 @@
 // HUKUM GAME - MAIN APP COMPONENT
 // ============================================
 
-import { useCallback, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { useWebSocket } from './hooks/useWebSocket';
 import { Lobby } from './components/Lobby';
 import { GameTable } from './components/GameTable';
@@ -11,12 +11,29 @@ import { RulesPanel } from './components/RulesPanel';
 import { SettingsModal } from './components/shared/SettingsModal';
 import { Modal } from './components/ui/Modal';
 import { AlertIcon, WifiOffIcon } from './components/ui/Icons';
-import { soundManager } from './audio/soundManager';
-import { loadMuted, loadName, saveMuted, saveName } from './prefs';
+import { playSound, soundManager } from './audio/soundManager';
+import { setHapticsEnabled } from './audio/haptics';
+import { loadAudioPrefs, loadName, saveAudioPrefs, saveName, type AudioPrefs } from './prefs';
 import './App.css';
 
-// Apply the saved sound preference before anything plays
-soundManager.setMuted(loadMuted());
+// Apply saved audio settings before anything plays, and start decoding sounds
+const initialAudio = loadAudioPrefs();
+soundManager.configure(initialAudio);
+setHapticsEnabled(initialAudio.vibration);
+soundManager.init();
+
+/** Button press feedback for every button except cards (cards have their own sounds) */
+function useTapSounds() {
+  useEffect(() => {
+    const onClick = (e: MouseEvent) => {
+      const el = (e.target as Element | null)?.closest?.('button');
+      if (!el || el.disabled || el.classList.contains('pcard')) return;
+      playSound(el.getAttribute('role') === 'switch' ? 'toggle' : 'buttonClick');
+    };
+    document.addEventListener('click', onClick);
+    return () => document.removeEventListener('click', onClick);
+  }, []);
+}
 
 function App() {
   const {
@@ -46,7 +63,7 @@ function App() {
   } = useWebSocket();
 
   const [playerName, setPlayerName] = useState(loadName);
-  const [muted, setMuted] = useState(loadMuted);
+  const [audio, setAudio] = useState<AudioPrefs>(initialAudio);
   const [chatOpen, setChatOpen] = useState(false);
   const [rulesOpen, setRulesOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -60,12 +77,17 @@ function App() {
     saveName(name);
   };
 
-  const toggleMute = () => {
-    const next = !muted;
-    setMuted(next);
-    soundManager.setMuted(next);
-    saveMuted(next);
+  const changeAudio = (patch: Partial<AudioPrefs>) => {
+    const next = { ...audio, ...patch };
+    setAudio(next);
+    saveAudioPrefs(next);
+    soundManager.configure(next);
+    setHapticsEnabled(next.vibration);
+    // Let the player hear the new effects level
+    if (patch.sfxVolume !== undefined) playSound('cardPlay');
   };
+
+  useTapSounds();
 
   const openChat = () => setChatOpen(true);
   const closeChat = useCallback(() => {
@@ -83,6 +105,24 @@ function App() {
   const inRoom = Boolean(roomCode && gameState && playerId);
   // Home and waiting room have their own How to Play button; the table only has the gear.
   const atTable = inRoom && gameState!.phase !== 'WAITING_FOR_PLAYERS' && gameState!.phase !== 'READY_CHECK';
+
+  // Background music: one track for menus and the waiting room, another at the table
+  useEffect(() => {
+    soundManager.setMusic(atTable ? 'table' : 'lobby');
+  }, [atTable]);
+
+  // Chat ping for other people's messages only
+  const chatCount = useRef(chatMessages.length);
+  useEffect(() => {
+    const fresh = chatMessages.slice(chatCount.current);
+    chatCount.current = chatMessages.length;
+    if (fresh.some(m => m.playerId !== playerId)) playSound('chat');
+  }, [chatMessages, playerId]);
+
+  // Error toast sound
+  useEffect(() => {
+    if (errorSeq > 0) playSound('error');
+  }, [errorSeq]);
 
   return (
     <>
@@ -131,7 +171,7 @@ function App() {
       )}
 
       {settingsOpen && (
-        <SettingsModal muted={muted} onToggleMute={toggleMute} onOpenRules={atTable ? openRules : undefined} onClose={closeSettings} />
+        <SettingsModal audio={audio} onChangeAudio={changeAudio} onOpenRules={atTable ? openRules : undefined} onClose={closeSettings} />
       )}
 
       {rulesOpen && <RulesPanel onClose={closeRules} />}

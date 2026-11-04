@@ -131,6 +131,23 @@ export const SoundIcon = ({ muted, ...p }: P & { muted?: boolean }) => (
     </svg>
 );
 
+export const MusicIcon = ({ muted, ...p }: P & { muted?: boolean }) => (
+    <svg {...glyph} {...p}>
+        <path d="M12 23.5V7.5l15-3v15" fill="none" strokeWidth="3" stroke={INK} />
+        <path d="M12 23.5V7.5l15-3v15" fill="none" strokeWidth="1.2" stroke="#fff" />
+        <ellipse cx="8.5" cy="23.5" rx="4.5" ry="3.6" />
+        <ellipse cx="23.5" cy="19.5" rx="4.5" ry="3.6" />
+        {muted && <path d="m4 4 24 24" fill="none" strokeWidth="3.4" stroke="#e94359" />}
+    </svg>
+);
+
+export const VibrateIcon = (p: P) => (
+    <svg {...glyph} {...p}>
+        <rect x="10" y="4.5" width="12" height="23" rx="2.5" />
+        <path d="M6 10.5v11M3 13v6M26 10.5v11M29 13v6" fill="none" stroke={INK} strokeWidth="2.6" />
+    </svg>
+);
+
 export const AlertIcon = (p: P) => (
     <svg viewBox="0 0 32 32" aria-hidden {...p}>
         <path d="M16 3 30 27H2z" fill="#ffcb22" stroke={INK} strokeWidth="2.6" strokeLinejoin="round" />
