@@ -1,0 +1,217 @@
+/* ============================================
+   LOBBY BACKGROUND
+   ============================================ */
+
+.bg-lobby {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background:
+    radial-gradient(90% 70% at 50% 45%, var(--blue-400) 0%, var(--blue-600) 55%, var(--blue-900) 100%);
+  z-index: 0;
+}
+
+.bg-rays {
+  position: absolute;
+  top: 45%;
+  left: 50%;
+  width: 220vmax;
+  height: 220vmax;
+  transform: translate(-50%, -50%);
+  background: repeating-conic-gradient(from 0deg, rgba(255, 255, 255, 0.07) 0deg 9deg, transparent 9deg 18deg);
+  animation: spin-slow 120s linear infinite;
+}
+
+.bg-glow {
+  position: absolute;
+  top: 45%;
+  left: 50%;
+  width: 90vmin;
+  height: 90vmin;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(121, 209, 240, 0.55) 0%, rgba(121, 209, 240, 0) 65%);
+}
+
+.bg-floater {
+  position: absolute;
+  opacity: 0.9;
+  transform: rotate(var(--r));
+  animation: float 6s ease-in-out infinite;
+}
+
+.bg-floater svg {
+  width: 100%;
+  height: 100%;
+  filter: drop-shadow(0 6px 0 rgba(15, 36, 64, 0.35));
+}
+
+@keyframes spin-slow {
+  to { transform: translate(-50%, -50%) rotate(360deg); }
+}
+
+@keyframes float {
+  0%, 100% { transform: translateY(0) rotate(var(--r)); }
+  50% { transform: translateY(-12px) rotate(calc(var(--r) + 6deg)); }
+}
+
+/* ============================================
+   GAME ROOM + TABLE
+   ============================================ */
+
+.bg-room {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  z-index: 0;
+  background: var(--wood-700);
+}
+
+.bg-room.blurred {
+  filter: blur(3px) brightness(0.8) saturate(1.1);
+  transform: scale(1.04);
+}
+
+/* Wooden floor planks */
+.room-floor {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(120% 90% at 50% 50%, rgba(255, 210, 150, 0.25) 0%, rgba(0, 0, 0, 0.45) 100%),
+    repeating-linear-gradient(90deg,
+      #8a5129 0 2px,
+      #a8673a 2px 88px,
+      #9a5d33 88px 90px,
+      #b37343 90px 176px);
+}
+
+/* Rug under the table */
+.room-rug {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 104%;
+  height: 92%;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background:
+    radial-gradient(closest-side, transparent 86%, rgba(255, 203, 34, 0.35) 87%, transparent 89%),
+    radial-gradient(closest-side, #2a6b52 0%, #1f5640 80%, #173f2f 100%);
+  box-shadow: 0 0 60px rgba(0, 0, 0, 0.45);
+}
+
+/* Table: wooden rim + felt */
+.table-rim {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: min(96%, 1500px);
+  height: 88%;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  padding: clamp(10px, 1.8vmin, 20px);
+  background:
+    radial-gradient(closest-side, transparent 92%, rgba(0, 0, 0, 0.25) 100%),
+    linear-gradient(180deg, #c98a52 0%, #8e5328 55%, #6b3d1f 100%);
+  box-shadow:
+    inset 0 4px 0 rgba(255, 220, 170, 0.5),
+    0 14px 0 #4d2a14,
+    0 24px 50px rgba(0, 0, 0, 0.55);
+}
+
+.table-felt {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  overflow: hidden;
+  background:
+    radial-gradient(60% 55% at 50% 45%, rgba(170, 255, 140, 0.32) 0%, rgba(170, 255, 140, 0) 70%),
+    radial-gradient(closest-side, var(--felt-300) 0%, var(--felt-500) 55%, var(--felt-700) 88%, var(--felt-900) 100%);
+  box-shadow: inset 0 10px 30px rgba(0, 0, 0, 0.45), inset 0 0 0 3px rgba(0, 0, 0, 0.25);
+}
+
+.felt-ring {
+  position: absolute;
+  inset: 9%;
+  border-radius: 50%;
+  border: 3px solid rgba(255, 255, 255, 0.1);
+  box-shadow: inset 0 0 0 10px rgba(0, 0, 0, 0.05);
+}
+
+.felt-emblem {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  opacity: 0.13;
+  pointer-events: none;
+}
+
+.felt-emblem svg {
+  width: clamp(80px, 22vmin, 180px);
+  height: clamp(80px, 22vmin, 180px);
+  fill: #000;
+}
+
+.felt-emblem span {
+  font-family: var(--font-display);
+  font-size: clamp(22px, 6vmin, 48px);
+  letter-spacing: 0.2em;
+  color: #000;
+}
+
+/* Portrait: stand the table up */
+@media (orientation: portrait) {
+  .table-rim {
+    width: 96%;
+    height: min(78%, 900px);
+  }
+
+  .room-rug {
+    width: 115%;
+    height: 90%;
+  }
+}
+
+/* ============================================
+   LOGO
+   ============================================ */
+
+.logo {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  filter: drop-shadow(0 6px 0 rgba(15, 36, 64, 0.45));
+}
+
+.logo-mark {
+  width: 1.05em;
+  height: 1.05em;
+  margin-bottom: 0.08em;
+}
+
+.logo-word {
+  font-family: var(--font-display);
+  line-height: 1;
+  letter-spacing: 0.02em;
+  color: var(--yellow-500);
+  background: linear-gradient(180deg, #fff3a8 0%, #ffcb22 45%, #f28a18 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  -webkit-text-stroke: 0.08em var(--ink);
+  paint-order: stroke fill;
+}
+
+.logo-lg {
+  font-size: var(--fs-hero);
+}
+
+.logo-md {
+  font-size: 44px;
+}

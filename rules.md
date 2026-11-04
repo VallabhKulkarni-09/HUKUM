@@ -89,6 +89,7 @@ A player declares: *"I will win 4 consecutive tricks alone, without trump."*
 - Order: **Clockwise from dealer's next player**
 - Each player gets **one chance** to declare or pass
 - **Any player** (regardless of team) can declare Vakkai
+- **Eligibility**: Vakkai can only be declared if the first 4 cards are **exactly 3 cards of one suit and 1 card of another suit** (e.g. 3♥ + 1♠). Players with any other distribution (4-0, 2-2, 2-1-1, 1-1-1-1) are **not asked** and are skipped automatically. If no player is eligible, the hand goes straight to Hukum selection.
 
 ### Vakkai Gameplay
 - **No trump suit** exists

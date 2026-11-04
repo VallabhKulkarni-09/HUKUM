@@ -1,0 +1,240 @@
+/* ============================================
+   PLAYING CARD
+   ============================================ */
+
+.pcard {
+  --w: var(--card-w);
+  position: relative;
+  display: block;
+  width: var(--w);
+  height: calc(var(--w) * 1.4);
+  flex-shrink: 0;
+  padding: 0;
+  border: 2px solid rgba(23, 54, 92, 0.85);
+  border-radius: calc(var(--w) * 0.12);
+  background:
+    radial-gradient(120% 80% at 30% 15%, #ffffff 0%, var(--paper) 55%, #f4eedd 100%);
+  box-shadow: var(--sh-card), inset 0 -3px 0 rgba(150, 130, 90, 0.18);
+  cursor: default;
+  transition:
+    transform var(--dur-base) var(--ease-pop),
+    box-shadow var(--dur-base) ease,
+    filter var(--dur-base) ease;
+}
+
+.pcard.red {
+  color: var(--suit-red);
+}
+
+.pcard.black {
+  color: var(--suit-black);
+}
+
+.pcard.in-trick {
+  --w: var(--trick-w);
+}
+
+/* Thin decorative inner frame */
+.pcard-frame {
+  position: absolute;
+  inset: calc(var(--w) * 0.07);
+  border: 1.5px solid currentColor;
+  border-radius: calc(var(--w) * 0.07);
+  opacity: 0.16;
+  pointer-events: none;
+}
+
+/* Corner index */
+.pcard-index {
+  position: absolute;
+  top: calc(var(--w) * 0.06);
+  left: calc(var(--w) * 0.08);
+  width: calc(var(--w) * 0.3);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  line-height: 1;
+}
+
+.pcard-index.flip {
+  top: auto;
+  left: auto;
+  right: calc(var(--w) * 0.08);
+  bottom: calc(var(--w) * 0.06);
+  transform: rotate(180deg);
+}
+
+.pcard-rank {
+  font-family: var(--font-display);
+  font-size: calc(var(--w) * 0.34);
+  letter-spacing: -0.04em;
+  line-height: 0.95;
+}
+
+.pcard-index-suit {
+  width: calc(var(--w) * 0.22);
+  height: calc(var(--w) * 0.22);
+  margin-top: calc(var(--w) * 0.02);
+}
+
+/* Centre art */
+.pcard-centre {
+  position: absolute;
+  top: 50%;
+  left: 54%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.pcard-pip {
+  width: calc(var(--w) * 0.5);
+  height: calc(var(--w) * 0.5);
+  filter: drop-shadow(0 2px 0 rgba(0, 0, 0, 0.12));
+}
+
+.pcard-centre.ace {
+  width: calc(var(--w) * 0.66);
+  height: calc(var(--w) * 0.66);
+}
+
+.pcard-ace-ring {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.pcard-ace-suit {
+  width: 62%;
+  height: 62%;
+  filter: drop-shadow(0 2px 0 rgba(0, 0, 0, 0.15));
+}
+
+.pcard-centre.court {
+  /* Sits right of / below the corner index so the rank stays readable */
+  left: 60%;
+  top: 56%;
+  width: calc(var(--w) * 0.5);
+  height: calc(var(--w) * 0.68);
+  border: 2px solid var(--ink);
+  border-radius: calc(var(--w) * 0.08);
+  gap: calc(var(--w) * 0.02);
+  padding-top: calc(var(--w) * 0.04);
+}
+
+.court-red {
+  background: linear-gradient(180deg, #ffe4e7 0%, #ffc9cf 100%);
+}
+
+.court-blue {
+  background: linear-gradient(180deg, #e2f2ff 0%, #bfdcf6 100%);
+}
+
+.pcard-crest {
+  width: 82%;
+  height: auto;
+}
+
+.pcard-court-suit {
+  width: 46%;
+  height: 46%;
+}
+
+/* ---- States ---- */
+
+.pcard.playable {
+  cursor: pointer;
+}
+
+.pcard.selected {
+  transform: translateY(-26%);
+  box-shadow:
+    0 0 0 3px var(--yellow-500),
+    0 0 0 6px var(--ink),
+    0 0 24px 6px rgba(255, 203, 34, 0.6),
+    0 16px 24px rgba(0, 0, 0, 0.35);
+}
+
+.pcard.disabled {
+  filter: brightness(0.62) saturate(0.55);
+}
+
+.pcard.winner {
+  box-shadow:
+    0 0 0 3px var(--yellow-500),
+    0 0 0 6px var(--ink),
+    0 0 28px 8px rgba(255, 203, 34, 0.75),
+    var(--sh-card);
+  z-index: 3;
+}
+
+@media (hover: hover) and (pointer: fine) {
+  .pcard.playable:not(.selected):hover {
+    transform: translateY(-14%);
+    box-shadow:
+      0 0 0 3px var(--yellow-500),
+      0 0 0 6px var(--ink),
+      0 12px 20px rgba(0, 0, 0, 0.3);
+  }
+}
+
+/* ============================================
+   CARD BACK
+   ============================================ */
+
+.pcard-back {
+  display: block;
+  width: var(--mini-back-w);
+  height: calc(var(--mini-back-w) * 1.4);
+  padding: 2px;
+  border: 1.5px solid var(--ink);
+  border-radius: 4px;
+  background: #fff;
+  box-shadow: 0 2px 3px rgba(0, 0, 0, 0.3);
+}
+
+.pcard-back-inner {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: 2.5px;
+  overflow: hidden;
+}
+
+.pcard-back-art {
+  width: 100%;
+  height: 100%;
+}
+
+/* ============================================
+   CARD FAN (face-down opponent hand)
+   ============================================ */
+
+.card-fan {
+  position: relative;
+  display: inline-flex;
+}
+
+.card-fan.horizontal .card-fan-slot + .card-fan-slot {
+  margin-left: calc(var(--mini-back-w) * -0.62);
+}
+
+.card-fan.horizontal .card-fan-slot {
+  transform: rotate(calc(var(--i) * 5deg)) translateY(calc(var(--i) * var(--i) * 0.5px));
+  transform-origin: 50% 120%;
+}
+
+.card-fan.vertical {
+  flex-direction: column;
+}
+
+.card-fan.vertical .card-fan-slot + .card-fan-slot {
+  margin-top: calc(var(--mini-back-w) * -1.08);
+}
+
+.card-fan.vertical .card-fan-slot {
+  transform: rotate(calc(90deg + var(--i) * 4deg));
+}

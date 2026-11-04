@@ -1,0 +1,126 @@
+/* ============================================
+   DEAL LAYER - central deck, shuffle and card flights
+   Only transform/opacity are animated. No blur filters.
+   ============================================ */
+
+.deal-layer {
+  --deck-w: calc(var(--trick-w) * 0.92);
+  --deck-h: calc(var(--deck-w) * 1.4);
+  position: absolute;
+  inset: 0;
+  z-index: 40;
+  pointer-events: none;
+}
+
+.deal-anchor {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 0;
+  height: 0;
+}
+
+.deal-body {
+  position: absolute;
+  left: calc(var(--deck-w) / -2);
+  top: calc(var(--deck-h) / -2);
+  width: var(--deck-w);
+  height: var(--deck-h);
+  visibility: hidden;
+}
+
+/* Soft contact shadow, slightly below and wider than the pile */
+.deal-shadow {
+  position: absolute;
+  left: -22%;
+  right: -22%;
+  bottom: -16%;
+  height: 40%;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgba(4, 30, 16, 0.55), rgba(4, 30, 16, 0.25) 60%, transparent);
+  visibility: hidden;
+}
+
+.deal-card,
+.deal-flight {
+  position: absolute;
+  will-change: transform;
+}
+
+.deal-card {
+  inset: 0;
+}
+
+/* Big card backs: reuse the mini back art at deck size */
+.deal-card .pcard-back,
+.deal-flight .pcard-back {
+  width: 100%;
+  height: 100%;
+  padding: 7%;
+  border-width: 2.5px;
+  border-radius: 9%;
+  box-shadow: 0 1px 0 #c8d4e4, 0 3px 6px rgba(0, 0, 0, 0.28);
+}
+
+.deal-card .pcard-back-inner,
+.deal-flight .pcard-back-inner {
+  border-radius: 7%;
+}
+
+/* Bright stripe that sweeps the top card when the deck settles */
+.deal-glint {
+  position: absolute;
+  inset: 0;
+  z-index: 60;
+  border-radius: 9%;
+  /* Clips the moving bar to the top card; offset to sit on the top card of the pile */
+  overflow: hidden;
+  transform: translate(4.9px, -14px);
+}
+
+.deal-glint-bar {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(105deg, transparent 30%, rgba(255, 255, 255, 0.75) 48%, transparent 66%);
+  visibility: hidden;
+}
+
+.deal-spark {
+  position: absolute;
+  z-index: 70;
+  width: 22px;
+  height: 22px;
+  visibility: hidden;
+}
+
+.deal-spark svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+}
+
+.deal-spark.s0 { left: -38%; top: 6%; }
+.deal-spark.s1 { right: -40%; top: 18%; width: 16px; height: 16px; }
+.deal-spark.s2 { left: -26%; bottom: 4%; width: 14px; height: 14px; }
+.deal-spark.s3 { right: -30%; bottom: -6%; }
+.deal-spark.s4 { left: 38%; top: -30%; width: 15px; height: 15px; }
+
+.deal-flight {
+  left: calc(var(--deck-w) / -2);
+  top: calc(var(--deck-h) / -2);
+  width: var(--deck-w);
+  height: var(--deck-h);
+  visibility: hidden;
+}
+
+.deal-flight-card {
+  width: 100%;
+  height: 100%;
+}
+
+.deal-probe {
+  position: absolute;
+  width: var(--card-w);
+  height: 1px;
+  visibility: hidden;
+}

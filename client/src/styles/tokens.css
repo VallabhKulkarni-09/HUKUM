@@ -1,0 +1,181 @@
+/* ============================================
+   HUKUM DESIGN TOKENS
+   Bright, playful casual-card-game language.
+   All colours, type, spacing, radii, shadows,
+   motion and layers live here.
+   ============================================ */
+
+@font-face {
+  font-family: "Lilita One";
+  src: url("../assets/fonts/LilitaOne.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Fredoka";
+  src: url("../assets/fonts/Fredoka-Variable.woff2") format("woff2");
+  font-weight: 300 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+:root {
+  /* ---- Brand palette ---- */
+  --ink: #17365c;              /* dark outline for text, borders */
+  --ink-deep: #0f2440;
+
+  --blue-900: #123e72;
+  --blue-800: #17508f;
+  --blue-700: #1b5ea6;
+  --blue-600: #206ab5;         /* primary */
+  --blue-500: #317fc5;         /* secondary */
+  --blue-400: #4b97d8;
+  --blue-300: #79d1f0;         /* light */
+  --blue-200: #a9e4f7;
+  --blue-100: #d8f3fc;
+
+  --green-700: #2f8a0c;
+  --green-600: #4fb514;
+  --green-500: #76e323;        /* action */
+  --green-300: #b4f57a;
+
+  --yellow-700: #d4880a;
+  --yellow-600: #f2a813;
+  --yellow-500: #ffcb22;       /* highlight */
+  --yellow-300: #ffe27a;
+
+  --orange-700: #c25f05;
+  --orange-500: #f28a18;       /* accent */
+  --orange-300: #ffb766;
+
+  --red-700: #a8203a;
+  --red-500: #e94359;          /* alert */
+  --red-300: #ff8fa0;
+
+  --teal-500: #54c6d4;         /* empty seat */
+  --teal-700: #2f98a8;
+
+  --felt-900: #0b4f30;
+  --felt-700: #10673e;
+  --felt-500: #147a4b;         /* table */
+  --felt-300: #23a066;
+  --wood-700: #6b3d1f;
+  --wood-500: #94582d;
+  --wood-300: #c4834b;
+
+  --white: #ffffff;
+  --paper: #fffdf7;            /* card face */
+  --paper-edge: #e9e2d0;
+
+  /* ---- Teams ---- */
+  --team-a: #2f8cf0;
+  --team-a-dark: #1557a8;
+  --team-b: #f0473f;
+  --team-b-dark: #a8231c;
+
+  /* ---- Semantic ---- */
+  --text: var(--white);
+  --text-soft: rgba(255, 255, 255, 0.82);
+  --text-muted: rgba(255, 255, 255, 0.62);
+  --text-dark: var(--ink);
+  --suit-red: #d8263a;
+  --suit-black: #1c2433;
+  --success: var(--green-500);
+  --warning: var(--yellow-500);
+  --danger: var(--red-500);
+  --turn: var(--yellow-500);
+
+  /* ---- Type ---- */
+  --font-display: "Lilita One", "Fredoka", ui-rounded, "Arial Rounded MT Bold", system-ui, sans-serif;
+  --font-body: "Fredoka", ui-rounded, "Arial Rounded MT Bold", system-ui, sans-serif;
+
+  --fs-xs: 12px;
+  --fs-sm: 14px;
+  --fs-md: 16px;
+  --fs-lg: 19px;
+  --fs-xl: 24px;
+  --fs-2xl: 30px;
+  --fs-3xl: 40px;
+  --fs-hero: clamp(52px, 14vw, 88px);
+
+  /* Thick dark outline for white display text */
+  --outline-2: 0 2px 0 var(--ink), 2px 0 0 var(--ink), -2px 0 0 var(--ink), 0 -2px 0 var(--ink),
+    1.5px 1.5px 0 var(--ink), -1.5px 1.5px 0 var(--ink), 1.5px -1.5px 0 var(--ink), -1.5px -1.5px 0 var(--ink);
+  --outline-3: var(--outline-2), 0 3px 0 var(--ink), 2px 3px 0 var(--ink), -2px 3px 0 var(--ink);
+  --outline-1: 0 1px 0 var(--ink), 1px 0 0 var(--ink), -1px 0 0 var(--ink), 0 -1px 0 var(--ink);
+
+  /* ---- Spacing (4px grid) ---- */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 20px;
+  --sp-6: 24px;
+  --sp-8: 32px;
+  --sp-10: 40px;
+
+  /* ---- Radii ---- */
+  --r-sm: 8px;
+  --r-md: 12px;
+  --r-lg: 18px;
+  --r-xl: 24px;
+  --r-2xl: 32px;
+  --r-pill: 999px;
+
+  /* ---- Borders ---- */
+  --bw: 3px;
+  --bw-thick: 4px;
+
+  /* ---- Shadows ---- */
+  --sh-lip: 0 4px 0 var(--ink);                       /* 3D button lip */
+  --sh-pop: 0 6px 0 rgba(15, 36, 64, 0.35), 0 12px 24px rgba(15, 36, 64, 0.35);
+  --sh-panel: 0 10px 0 rgba(15, 36, 64, 0.35), 0 24px 48px rgba(10, 25, 50, 0.45);
+  --sh-card: 0 2px 0 rgba(0, 0, 0, 0.12), 0 6px 14px rgba(0, 0, 0, 0.28);
+  --sh-inset-well: inset 0 3px 0 rgba(10, 30, 60, 0.25), inset 0 0 0 2px rgba(255, 255, 255, 0.12);
+
+  /* ---- Controls ---- */
+  --btn-h-sm: 40px;
+  --btn-h-md: 52px;
+  --btn-h-lg: 64px;
+  --tap-min: 44px;
+
+  /* ---- Cards (5:7 playing card) ----
+     Hand cards: 8 overlapping cards must fit the width; bounded by height in landscape. */
+  /* 8 cards at 50% overlap span 4.5 card widths, plus room for the fan's spread */
+  --card-w: clamp(52px, min(calc((100vw - 40px) / 4.85), 17dvh), 104px);
+  --card-h: calc(var(--card-w) * 1.4);
+  --trick-w: clamp(48px, min(17vw, 12dvh), 88px);
+  --trick-h: calc(var(--trick-w) * 1.4);
+  --mini-back-w: 18px;
+
+  /* ---- Avatars ---- */
+  --avatar-sm: 44px;
+  --avatar-md: 60px;
+  --avatar-lg: 84px;
+  --avatar-xl: 104px;
+
+  /* ---- Motion ---- */
+  --dur-fast: 120ms;
+  --dur-base: 220ms;
+  --dur-slow: 380ms;
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-pop: cubic-bezier(0.34, 1.56, 0.64, 1);
+
+  /* ---- Layers ---- */
+  --z-table: 1;
+  --z-trick: 2;
+  --z-seat: 3;
+  --z-hand: 10;
+  --z-hud: 20;
+  --z-overlay: 100;
+  --z-modal: 200;
+  --z-toast: 300;
+
+  /* ---- Safe areas ---- */
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+}

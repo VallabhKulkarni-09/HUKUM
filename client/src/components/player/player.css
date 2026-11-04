@@ -1,0 +1,129 @@
+/* ============================================
+   AVATAR FRAME
+   ============================================ */
+
+.avatar-frame {
+  --size: var(--avatar-md);
+  --frame: var(--ink);
+  position: relative;
+  width: var(--size);
+  height: var(--size);
+  flex-shrink: 0;
+  border: var(--bw) solid var(--frame);
+  border-radius: calc(var(--size) * 0.2);
+  background: var(--ink);
+  box-shadow: 0 4px 0 rgba(15, 36, 64, 0.45);
+  transition: box-shadow var(--dur-base) ease, transform var(--dur-base) var(--ease-pop);
+}
+
+.avatar-frame .avatar-svg {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border-radius: calc(var(--size) * 0.16);
+}
+
+.avatar-frame.sm { --size: var(--avatar-sm); }
+.avatar-frame.md { --size: var(--avatar-md); }
+.avatar-frame.lg { --size: var(--avatar-lg); }
+.avatar-frame.xl { --size: var(--avatar-xl); }
+
+/* Team ring: thin coloured outline outside the dark frame */
+.avatar-frame.team-a { box-shadow: 0 0 0 3px var(--team-a), 0 5px 0 3px rgba(15, 36, 64, 0.4); }
+.avatar-frame.team-b { box-shadow: 0 0 0 3px var(--team-b), 0 5px 0 3px rgba(15, 36, 64, 0.4); }
+
+/* Whose turn: glowing yellow pulse */
+.avatar-frame.turn {
+  animation: pulse-ring 1.4s ease-in-out infinite;
+  transform: scale(1.06);
+}
+
+.avatar-frame.dim {
+  filter: grayscale(0.8) brightness(0.7);
+}
+
+/* ---- Corner badges ---- */
+
+.av-badge {
+  position: absolute;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2.5px solid var(--ink);
+  font-family: var(--font-display);
+  line-height: 1;
+  color: var(--ink);
+  box-shadow: 0 2px 0 var(--ink);
+}
+
+.av-badge.dealer {
+  top: -10px;
+  left: -10px;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: linear-gradient(180deg, #fff, #dfe8f2);
+  font-size: 14px;
+}
+
+.av-badge.vakkai {
+  top: -10px;
+  right: -10px;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: linear-gradient(180deg, var(--orange-300), var(--orange-500));
+  color: var(--white);
+  font-size: 14px;
+  text-shadow: var(--outline-1);
+}
+
+.av-badge.count {
+  right: -10px;
+  bottom: -8px;
+  min-width: 28px;
+  height: 26px;
+  padding: 0 6px;
+  border-radius: 8px;
+  background: linear-gradient(180deg, #fff, #e7eef6);
+  font-size: 15px;
+}
+
+.av-badge.bot {
+  left: 50%;
+  bottom: -10px;
+  transform: translateX(-50%);
+  height: 18px;
+  padding: 0 6px;
+  border-radius: 5px;
+  background: var(--yellow-500);
+  font-size: 11px;
+  letter-spacing: 0.05em;
+}
+
+.av-badge.check {
+  right: -10px;
+  bottom: -10px;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  background: linear-gradient(180deg, var(--green-300), var(--green-600));
+}
+
+.av-badge.check svg {
+  width: 18px;
+  height: 18px;
+}
+
+.av-badge.offline {
+  inset: 0;
+  border: none;
+  border-radius: inherit;
+  background: rgba(15, 36, 64, 0.62);
+  box-shadow: none;
+  color: var(--white);
+  font-size: 12px;
+  text-shadow: var(--outline-1);
+  letter-spacing: 0.04em;
+}

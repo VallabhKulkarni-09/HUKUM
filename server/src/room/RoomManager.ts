@@ -72,6 +72,21 @@ export class RoomManager {
     }
 
     /**
+     * Add a server-controlled bot to a team. Bots have no socket.
+     */
+    addBot(roomCode: string, team: TeamId): Player | null {
+        const room = this.rooms.get(roomCode);
+        if (!room) return null;
+
+        // Pick the lowest unused bot number for a readable name
+        const names = new Set(room.engine.getAllPlayers().map(p => p.name));
+        let n = 1;
+        while (names.has(`Bot ${n}`)) n++;
+
+        return room.engine.addPlayer(uuidv4(), `Bot ${n}`, team, true);
+    }
+
+    /**
      * Get room by code
      */
     getRoom(roomCode: string): { engine: GameEngine; playerSockets: Map<PlayerId, WebSocket> } | undefined {

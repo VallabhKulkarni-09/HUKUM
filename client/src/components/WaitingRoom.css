@@ -1,0 +1,563 @@
+/* ============================================
+   WAITING ROOM
+   Portrait: title / room / teams side by side / ready
+   Landscape: team A | room | team B, ready below
+   ============================================ */
+
+.wr {
+  position: relative;
+  height: 100%;
+  overflow: clip;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: auto auto auto 1fr auto;
+  grid-template-areas:
+    "top    top"
+    "title  title"
+    "room   room"
+    "teamA  teamB"
+    "bottom bottom";
+  column-gap: var(--sp-3);
+  padding:
+    calc(var(--safe-top) + var(--sp-3))
+    calc(var(--safe-right) + var(--sp-4))
+    calc(var(--safe-bottom) + var(--sp-3))
+    calc(var(--safe-left) + var(--sp-4));
+}
+
+.wr > :not(.bg-room) {
+  position: relative;
+  z-index: 1;
+}
+
+.wr-top {
+  grid-area: top;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.wr-count {
+  font-size: var(--fs-xl);
+  padding: 4px 16px;
+  border-radius: var(--r-pill);
+  background: rgba(10, 36, 22, 0.55);
+}
+
+.wr-count span {
+  color: var(--yellow-500);
+}
+
+.wr-actions {
+  display: flex;
+  gap: var(--sp-3);
+}
+
+.wr-title {
+  grid-area: title;
+  margin: var(--sp-2) 0 var(--sp-3);
+  text-align: center;
+  font-size: clamp(26px, 7vw, 44px);
+  animation: rise-in var(--dur-slow) var(--ease-out) both;
+}
+
+/* ---- Room code card ---- */
+
+.wr-room {
+  grid-area: room;
+  justify-self: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  width: min(100%, 320px);
+  margin-bottom: var(--sp-4);
+  padding: var(--sp-3) var(--sp-4) var(--sp-4);
+  border: var(--bw-thick) solid var(--ink);
+  border-radius: var(--r-xl);
+  background:
+    radial-gradient(100% 80% at 50% 0%, #ffffff 0%, var(--paper) 60%, #efe6cf 100%);
+  box-shadow: inset 0 -6px 0 rgba(150, 130, 90, 0.25), 0 8px 0 rgba(15, 36, 64, 0.45), 0 16px 30px rgba(0, 0, 0, 0.3);
+  transform: rotate(-1.5deg);
+  animation: room-in 0.5s var(--ease-pop) both;
+}
+
+.wr-room-label {
+  font-family: var(--font-display);
+  font-size: var(--fs-sm);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--blue-600);
+}
+
+.wr-code {
+  font-family: var(--font-display);
+  font-size: clamp(34px, 10vw, 48px);
+  letter-spacing: 0.14em;
+  margin-right: -0.14em;
+  color: var(--ink);
+  line-height: 1.1;
+  -webkit-user-select: all;
+  user-select: all;
+}
+
+.wr-room-actions {
+  display: flex;
+  gap: var(--sp-2);
+  margin-top: var(--sp-2);
+}
+
+/* ---- Teams ---- */
+
+.wr-team {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-3);
+  min-height: 0;
+}
+
+.wr-team.team-a { grid-area: teamA; }
+.wr-team.team-b { grid-area: teamB; }
+
+.wr-team-name {
+  padding: 4px 16px;
+  border: var(--bw) solid var(--ink);
+  border-radius: var(--r-pill);
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: var(--fs-md);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--white);
+  text-shadow: var(--outline-1);
+  box-shadow: inset 0 -3px 0 rgba(0, 0, 0, 0.2), 0 3px 0 var(--ink);
+}
+
+.team-a .wr-team-name { background: linear-gradient(180deg, var(--team-a), var(--team-a-dark)); }
+.team-b .wr-team-name { background: linear-gradient(180deg, var(--team-b), var(--team-b-dark)); }
+
+.wr-seats {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-4);
+}
+
+.wr-seat {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  width: 120px;
+  animation: seat-in 0.4s var(--ease-pop) both;
+}
+
+.wr-seat .nameplate {
+  max-width: 120px;
+}
+
+.wr-seat.me .nameplate {
+  background: var(--yellow-500);
+  color: var(--ink);
+  text-shadow: none;
+}
+
+.wr-state {
+  margin-top: -2px;
+  font-size: var(--fs-xs);
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.7);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.wr-state.ready {
+  color: var(--green-300);
+}
+
+.wr-remove {
+  position: absolute;
+  top: -10px;
+  right: 6px;
+  z-index: 3;
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2.5px solid var(--ink);
+  border-radius: 50%;
+  background: linear-gradient(180deg, var(--red-300), var(--red-500));
+  box-shadow: 0 2px 0 var(--ink);
+  transition: transform var(--dur-fast) ease;
+}
+
+.wr-remove::after {
+  content: "";
+  position: absolute;
+  inset: -8px;
+}
+
+.wr-remove svg {
+  width: 16px;
+  height: 16px;
+}
+
+.wr-remove:active {
+  transform: scale(0.88);
+}
+
+/* Empty seat */
+.wr-seat.empty {
+  transition: transform var(--dur-fast) ease;
+}
+
+.wr-seat.empty:active {
+  transform: scale(0.94);
+}
+
+.wr-empty-tile {
+  position: relative;
+  width: var(--avatar-lg);
+  height: var(--avatar-lg);
+  border: var(--bw) solid var(--ink);
+  border-radius: calc(var(--avatar-lg) * 0.2);
+  background: linear-gradient(180deg, var(--teal-500), var(--teal-700));
+  box-shadow: inset 0 -5px 0 rgba(0, 0, 0, 0.15), inset 0 2px 0 rgba(255, 255, 255, 0.4), 0 4px 0 rgba(15, 36, 64, 0.45);
+}
+
+.wr-empty-art {
+  width: 100%;
+  height: 100%;
+}
+
+.wr-add-badge {
+  position: absolute;
+  right: -10px;
+  bottom: -10px;
+  width: 34px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 2.5px solid var(--ink);
+  border-radius: 50%;
+  background: linear-gradient(180deg, var(--green-300), var(--green-600));
+  box-shadow: 0 2px 0 var(--ink);
+  animation: bob 1.6s ease-in-out infinite;
+}
+
+.wr-add-badge svg {
+  width: 20px;
+  height: 20px;
+}
+
+/* ---- Bottom ---- */
+
+.wr-bottom {
+  grid-area: bottom;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-3);
+  padding-top: var(--sp-3);
+}
+
+.wr-ready {
+  min-width: min(100%, 300px);
+}
+
+.wr-ready-done {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--sp-2);
+  min-height: var(--btn-h-lg);
+  padding: 0 var(--sp-8);
+  border: var(--bw) solid var(--ink);
+  border-radius: var(--r-xl);
+  background: rgba(10, 36, 22, 0.6);
+  font-size: var(--fs-2xl);
+  color: var(--green-300);
+}
+
+.wr-ready-done svg {
+  width: 30px;
+  height: 30px;
+}
+
+.wr-tip {
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.85);
+  text-align: center;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+}
+
+@keyframes room-in {
+  from { opacity: 0; transform: rotate(-8deg) scale(0.7); }
+}
+
+@keyframes seat-in {
+  from { opacity: 0; transform: scale(0.6); }
+}
+
+@keyframes bob {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-4px); }
+}
+
+/* ============================================
+   RESPONSIVE
+   ============================================ */
+
+/* Short portrait phones: tighter */
+@media (orientation: portrait) and (max-height: 700px) {
+  .wr-title {
+    margin: 0 0 var(--sp-2);
+  }
+
+  .wr-room {
+    margin-bottom: var(--sp-2);
+    padding: var(--sp-2) var(--sp-3) var(--sp-3);
+  }
+
+  .wr-seats {
+    gap: var(--sp-2);
+  }
+
+  .wr-seat .avatar-frame,
+  .wr-empty-tile {
+    --size: 64px;
+    width: 64px;
+    height: 64px;
+  }
+
+  .wr-state {
+    display: none;
+  }
+}
+
+.wr-team-name {
+  white-space: nowrap;
+}
+
+/* Very short portrait (e.g. 320×568): seats side by side within each team */
+@media (orientation: portrait) and (max-height: 620px) {
+  .wr-title {
+    font-size: 24px;
+  }
+
+  .wr-room {
+    width: min(100%, 260px);
+    padding: 6px var(--sp-3) var(--sp-2);
+  }
+
+  .wr-code {
+    font-size: 30px;
+  }
+
+  .wr-room .btn-sm {
+    min-height: 36px;
+    font-size: 17px;
+  }
+
+  .wr-team {
+    gap: var(--sp-2);
+  }
+
+  .wr-team-name {
+    padding: 2px 10px;
+    font-size: 13px;
+  }
+
+  .wr-seats {
+    flex-direction: row;
+    gap: var(--sp-2);
+  }
+
+  .wr-seat {
+    width: 64px;
+  }
+
+  .wr-seat .avatar-frame,
+  .wr-empty-tile {
+    --size: 54px;
+    width: 54px;
+    height: 54px;
+  }
+
+  .wr-seat .nameplate {
+    max-width: 66px;
+    padding: 2px 6px;
+    font-size: 11px;
+  }
+
+  .wr-remove {
+    top: -8px;
+    right: -4px;
+    width: 26px;
+    height: 26px;
+  }
+
+  .wr-add-badge {
+    width: 28px;
+    height: 28px;
+    right: -8px;
+    bottom: -8px;
+  }
+
+  .wr-bottom {
+    gap: var(--sp-2);
+  }
+
+  .wr-ready,
+  .wr-ready-done {
+    min-height: 54px;
+    font-size: 24px;
+  }
+
+  .wr-tip {
+    display: none;
+  }
+}
+
+/* Landscape: three columns like the reference */
+@media (orientation: landscape) {
+  .wr {
+    grid-template-columns: 1fr minmax(260px, 1.2fr) 1fr;
+    grid-template-rows: auto 1fr auto;
+    grid-template-areas:
+      "top   top    top"
+      "teamA middle teamB"
+      "teamA bottom teamB";
+  }
+
+  .wr-title {
+    grid-area: middle;
+    align-self: start;
+    margin: 0;
+  }
+
+  .wr-room {
+    grid-area: middle;
+    align-self: center;
+    margin: 0;
+  }
+
+  .wr-team {
+    justify-content: center;
+  }
+
+  .wr-top {
+    margin-bottom: var(--sp-1);
+  }
+}
+
+/* Short landscape phones */
+@media (orientation: landscape) and (max-height: 540px) {
+  .wr-top {
+    position: absolute !important;
+    top: calc(var(--safe-top) + var(--sp-2));
+    left: calc(var(--safe-left) + var(--sp-3));
+    right: calc(var(--safe-right) + var(--sp-3));
+    z-index: 2;
+  }
+
+  .wr {
+    grid-template-rows: 1fr auto;
+    grid-template-areas:
+      "teamA middle teamB"
+      "teamA bottom teamB";
+    padding-top: calc(var(--safe-top) + var(--sp-3));
+  }
+
+  .wr-title {
+    font-size: 30px;
+    margin-top: 4px;
+  }
+
+  .wr-room {
+    margin-top: 28px;
+    padding: var(--sp-2) var(--sp-3);
+    width: 280px;
+  }
+
+  .wr-code {
+    font-size: 34px;
+  }
+
+  .wr-team {
+    padding-top: 52px;
+    justify-content: flex-start;
+  }
+
+  .wr-seats {
+    gap: var(--sp-3);
+  }
+
+  .wr-seat .avatar-frame,
+  .wr-empty-tile {
+    --size: 68px;
+    width: 68px;
+    height: 68px;
+  }
+
+  .wr-state {
+    display: none;
+  }
+
+  .wr-bottom {
+    flex-direction: row;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: var(--sp-2) var(--sp-3);
+    padding-top: 0;
+  }
+
+  .wr-bottom .wr-switch {
+    min-height: 54px;
+  }
+
+  .wr-tip {
+    flex-basis: 100%;
+    font-size: var(--fs-xs);
+  }
+
+  .wr-ready,
+  .wr-ready-done {
+    min-height: 54px;
+  }
+
+  .wr-ready {
+    font-size: 26px;
+  }
+}
+
+/* Desktop */
+@media (min-width: 900px) and (min-height: 640px) {
+  .wr-seat .avatar-frame,
+  .wr-empty-tile {
+    --size: 104px;
+    width: 104px;
+    height: 104px;
+  }
+
+  .wr-seat {
+    width: 150px;
+  }
+
+  .wr-seats {
+    gap: var(--sp-6);
+  }
+
+  .wr-room {
+    width: 380px;
+    padding: var(--sp-5);
+  }
+
+  .wr-code {
+    font-size: 56px;
+  }
+}

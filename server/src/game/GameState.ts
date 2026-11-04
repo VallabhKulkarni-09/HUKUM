@@ -21,7 +21,7 @@ import { StateMachine, createStateMachine } from './StateMachine.js';
 import { createTrickState, addCardToTrick, calculateTrickWinner, isTrickComplete, getTrickTurnOrder } from './TrickLogic.js';
 import { createScore, applyScore, checkHandWinner, calculateVakkaiResult, isMatchEnd, getDealerChoosingTeam, getOppositeTeam, SCORING } from './Scoring.js';
 import { createDeck, shuffleDeck, dealCards, drawTossCards, calculateTossPoints } from './Deck.js';
-import { getCardValue } from './Card.js';
+import { getCardValue, isVakkaiEligible } from './Card.js';
 
 /**
  * Full game engine class
@@ -73,7 +73,7 @@ export class GameEngine {
     /**
      * Add a player to the game with specified team
      */
-    addPlayer(id: PlayerId, name: string, team?: TeamId): Player | null {
+    addPlayer(id: PlayerId, name: string, team?: TeamId, isBot: boolean = false): Player | null {
         if (this.players.size >= 4) return null;
 
         // Count players per team
@@ -107,9 +107,10 @@ export class GameEngine {
             seat: availableSeat,
             team: assignedTeam,
             hand: [],
-            isReady: false,
+            isReady: isBot, // Bots are always ready
             isConnected: true,
             wantsSwitch: false,
+            isBot,
         };
 
         this.players.set(id, player);
@@ -330,12 +331,33 @@ export class GameEngine {
         this.stateMachine.transitionTo('VAKKAI_DECISION');
         this.gameState.phase = 'VAKKAI_DECISION';
 
-        // Set first player to decide (next to dealer)
-        const dealer = this.players.get(this.gameState.dealerId!);
-        const firstDeciderSeat = ((dealer!.seat + 1) % 4) as SeatPosition;
-        const firstDecider = this.getPlayerBySeat(firstDeciderSeat);
-        this.gameState.currentTurnId = firstDecider!.id;
+        // Ask the first eligible player, starting next to the dealer
         this.gameState.vakkaiDecisionIndex = 0;
+        this.moveToNextVakkaiDecider();
+    }
+
+    /**
+     * Give the Vakkai decision to the next eligible player (3 of one suit + 1 of
+     * another), starting at vakkaiDecisionIndex. Ineligible players are skipped
+     * without being asked. If nobody is left, move on to Hukum selection.
+     */
+    private moveToNextVakkaiDecider(): void {
+        const dealerSeat = this.players.get(this.gameState.dealerId!)!.seat;
+
+        while (this.gameState.vakkaiDecisionIndex < 4) {
+            const seat = ((dealerSeat + 1 + this.gameState.vakkaiDecisionIndex) % 4) as SeatPosition;
+            const player = this.getPlayerBySeat(seat);
+            if (player && isVakkaiEligible(player.hand)) {
+                this.gameState.currentTurnId = player.id;
+                return;
+            }
+            this.gameState.vakkaiDecisionIndex++;
+        }
+
+        // No (remaining) eligible players: go to Hukum selection
+        this.stateMachine.transitionTo('HUKUM_SELECTION');
+        this.gameState.phase = 'HUKUM_SELECTION';
+        this.gameState.currentTurnId = this.gameState.trumpChooserId;
     }
 
     /**
@@ -346,19 +368,7 @@ export class GameEngine {
         if (this.gameState.currentTurnId !== playerId) return false;
 
         this.gameState.vakkaiDecisionIndex++;
-
-        // If all 4 passed, move to Hukum selection
-        if (this.gameState.vakkaiDecisionIndex >= 4) {
-            this.stateMachine.transitionTo('HUKUM_SELECTION');
-            this.gameState.phase = 'HUKUM_SELECTION';
-            this.gameState.currentTurnId = this.gameState.trumpChooserId;
-        } else {
-            // Next player's turn to decide
-            const currentPlayer = this.players.get(playerId)!;
-            const nextSeat = ((currentPlayer.seat + 1) % 4) as SeatPosition;
-            const nextPlayer = this.getPlayerBySeat(nextSeat);
-            this.gameState.currentTurnId = nextPlayer!.id;
-        }
+        this.moveToNextVakkaiDecider();
 
         return true;
     }
@@ -369,6 +379,10 @@ export class GameEngine {
     declareVakkai(playerId: PlayerId): boolean {
         if (this.gameState.phase !== 'VAKKAI_DECISION') return false;
         if (this.gameState.currentTurnId !== playerId) return false;
+
+        // Hand must be exactly 3 cards of one suit + 1 card of another
+        const player = this.players.get(playerId);
+        if (!player || !isVakkaiEligible(player.hand)) return false;
 
         this.gameState.vakkai = {
             active: true,
@@ -405,7 +419,7 @@ export class GameEngine {
         // Reset player states in the Map
         this.players.forEach(p => {
             p.hand = [];
-            p.isReady = false;
+            p.isReady = p.isBot; // Bots stay ready
             // Keep team and seat
         });
     }
@@ -424,7 +438,7 @@ export class GameEngine {
 
         this.players.forEach(p => {
             p.hand = [];
-            p.isReady = false;
+            p.isReady = p.isBot; // Bots stay ready
         });
     }
 
@@ -485,6 +499,11 @@ export class GameEngine {
 
         if (this.gameState.currentTurnId !== playerId) {
             return { success: false, error: 'Not your turn' };
+        }
+
+        // Trick is full and waiting to be resolved — no more cards allowed
+        if (isTrickComplete(this.gameState.currentTrick, this.gameState.vakkai.active)) {
+            return { success: false, error: 'Trick is being resolved' };
         }
 
         const player = this.players.get(playerId)!;
@@ -788,6 +807,7 @@ export class GameEngine {
                 isReady: p.isReady,
                 isConnected: p.isConnected,
                 wantsSwitch: p.wantsSwitch,
+                isBot: p.isBot,
             })),
             dealerTeam: this.gameState.dealerTeam,
             trumpTeam: this.gameState.trumpTeam,
@@ -842,6 +862,13 @@ export class GameEngine {
         const result = this.playCard(playerId, card.id);
         if (result.success) return { card, trickComplete: result.trickComplete || false };
         return null;
+    }
+
+    /**
+     * True if at least one human player is still connected
+     */
+    hasConnectedHumans(): boolean {
+        return [...this.players.values()].some(p => !p.isBot && p.isConnected);
     }
 
     /**

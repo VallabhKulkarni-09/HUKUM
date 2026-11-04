@@ -94,6 +94,22 @@ export function validateCardPlay(
 }
 
 /**
+ * Vakkai may only be declared when the first 4 cards are
+ * exactly 3 of one suit and 1 of another suit.
+ */
+export function isVakkaiEligible(hand: Card[]): boolean {
+    if (hand.length !== 4) return false;
+
+    const counts = new Map<Suit, number>();
+    for (const c of hand) {
+        counts.set(c.suit, (counts.get(c.suit) ?? 0) + 1);
+    }
+
+    const sorted = [...counts.values()].sort((a, b) => b - a);
+    return sorted.length === 2 && sorted[0] === 3 && sorted[1] === 1;
+}
+
+/**
  * Get card display string with Unicode symbol
  */
 export function getCardDisplay(card: Card): string {

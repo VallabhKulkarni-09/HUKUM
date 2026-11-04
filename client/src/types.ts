@@ -60,6 +60,7 @@ export interface PublicPlayer {
     isReady: boolean;
     isConnected: boolean;
     wantsSwitch: boolean;
+    isBot: boolean;
 }
 
 export interface PublicGameState {
@@ -100,6 +101,8 @@ export type ServerMessage =
     | { type: 'ERROR'; message: string }
     | { type: 'TOSS_RESULT'; cards: Record<PlayerId, Card>; dealerTeam: TeamId; trumpTeam: TeamId }
     | { type: 'GO_HOME' };
+
+export const SUITS: Suit[] = ['SPADE', 'HEART', 'DIAMOND', 'CLUB'];
 
 // Suit symbols for display
 export const SUIT_SYMBOLS: Record<Suit, string> = {

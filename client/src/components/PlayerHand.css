@@ -1,78 +1,55 @@
 /* ============================================
-   PLAYER HAND STYLES — Bottom of screen
+   PLAYER HAND - curved fan
    ============================================ */
 
-.player-hand {
-    position: fixed;
-    bottom: 12px;
-    left: 50%;
-    transform: translateX(-50%);
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 8px;
-    z-index: 5;
+.hand {
+  /* Overlap so 8 cards fit; less overlap with fewer cards */
+  --overlap: calc(var(--card-w) * -0.5);
+  display: flex;
+  justify-content: center;
+  align-items: flex-end;
+  padding-top: calc(var(--card-h) * 0.3);
+  min-height: calc(var(--card-h) * 1.3);
 }
 
-.hand-cards {
-    display: flex;
-    padding: 14px 20px;
-    background: rgba(0, 0, 0, 0.35);
-    backdrop-filter: blur(12px);
-    border-radius: 16px;
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.3);
+.hand.few {
+  --overlap: calc(var(--card-w) * -0.12);
 }
 
-.hand-cards .card {
-    margin-left: var(--hand-overlap);
-    transition: transform 0.25s cubic-bezier(0.34, 1.56, 0.64, 1), box-shadow 0.25s ease, margin 0.2s ease;
+.hand-slot {
+  position: relative;
+  transform:
+    rotate(calc(var(--i) * 3.2deg))
+    translateY(calc(var(--abs) * var(--abs) * 1.4px));
+  transform-origin: 50% 160%;
+  transition: transform var(--dur-base) var(--ease-out);
 }
 
-.hand-cards .card:first-child {
-    margin-left: 0;
+/* A newly dealt card flips open where the face-down flight card turned edge-on.
+   Uses the individual `scale` property so it never fights the card's own transform. */
+.hand-slot > .pcard {
+  animation: pcard-reveal 190ms var(--ease-out) both;
 }
 
-.turn-indicator {
-    background: linear-gradient(135deg, #4a9eff 0%, #6366f1 100%);
-    color: #fff;
-    padding: 8px 20px;
-    border-radius: 20px;
-    font-weight: 600;
-    font-size: 0.8rem;
-    animation: turnGlow 1.5s ease-in-out infinite;
-    letter-spacing: 0.3px;
+@keyframes pcard-reveal {
+  from { scale: 0.04 1; }
+  to { scale: 1 1; }
 }
 
-@keyframes turnGlow {
-
-    0%,
-    100% {
-        box-shadow: 0 0 16px rgba(74, 158, 255, 0.4);
-    }
-
-    50% {
-        box-shadow: 0 0 32px rgba(74, 158, 255, 0.7);
-    }
+.hand-slot + .hand-slot {
+  margin-left: var(--overlap);
 }
 
-/* Mobile */
-@media (max-width: 768px) {
-    .player-hand {
-        bottom: 6px;
-        gap: 6px;
-    }
+/* Keep raised card above its neighbours */
+.hand-slot:has(.pcard.selected) {
+  z-index: 5;
+}
 
-    .hand-cards {
-        padding: 8px 12px;
-        border-radius: 12px;
-        max-width: 98vw;
-        overflow-x: auto;
-        -webkit-overflow-scrolling: touch;
-    }
+.hand.sitting-out .pcard {
+  filter: brightness(0.5) saturate(0.4);
+}
 
-    .turn-indicator {
-        padding: 6px 16px;
-        font-size: 0.72rem;
-    }
+/* Glow under the hand when it's your move */
+.hand.active {
+  filter: drop-shadow(0 0 14px rgba(255, 203, 34, 0.45));
 }

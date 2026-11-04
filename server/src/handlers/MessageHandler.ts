@@ -4,12 +4,25 @@
 
 import { WebSocket } from 'ws';
 import { v4 as uuidv4 } from 'uuid';
-import { ClientMessage, ServerMessage, PlayerId, Suit, TeamId } from '../types.js';
+import { ClientMessage, ServerMessage, PlayerId, Suit, TeamId, SUITS } from '../types.js';
 import { RoomManager, getRoomManager } from '../room/RoomManager.js';
+import { isTrickComplete } from '../game/TrickLogic.js';
+import { shouldDeclareVakkai, chooseTrumpSuit, chooseCard } from '../game/BotStrategy.js';
+import { isVakkaiEligible } from '../game/Card.js';
+
+type RoomEntry = NonNullable<ReturnType<RoomManager['getRoom']>>;
 
 // Store player-to-room mapping
 const playerRooms = new Map<PlayerId, string>();
 const socketToPlayer = new Map<WebSocket, PlayerId>();
+
+// One pending automated action (bot / disconnected player) per room
+const autoTurnTimers = new Map<string, NodeJS.Timeout>();
+
+// Delays so humans can follow what bots do
+const BOT_DECISION_DELAY_MS = 800;
+const BOT_PLAY_DELAY_MS = 1000;
+const DISCONNECTED_PLAY_DELAY_MS = 2000;
 
 /**
  * Handle incoming WebSocket messages
@@ -31,6 +44,14 @@ export function handleMessage(socket: WebSocket, data: string): void {
 
             case 'TOGGLE_SWITCH_REQUEST':
                 handleToggleSwitchRequest(socket, roomManager);
+                break;
+
+            case 'ADD_BOT':
+                handleAddBot(socket, message.team, roomManager);
+                break;
+
+            case 'REMOVE_BOT':
+                handleRemoveBot(socket, message.botId, roomManager);
                 break;
 
             case 'READY':
@@ -121,81 +142,130 @@ export function handleDisconnect(socket: WebSocket): void {
         broadcastGameState(roomCode, roomManager);
 
         // If it's this disconnected player's turn, auto-play after a delay
-        autoPlayForDisconnected(roomCode, roomManager);
+        scheduleAutoTurn(roomCode, roomManager);
     }
 }
 
 /**
- * Auto-play for disconnected players. Chains if multiple disconnected players in a row.
+ * Schedule the next automated action if the current turn belongs to a bot
+ * (any decision phase) or a disconnected human (card play only, random card).
+ * Call after every state change. Replaces any previously pending action for the room.
  */
-function autoPlayForDisconnected(roomCode: string, roomManager: RoomManager): void {
+function scheduleAutoTurn(roomCode: string, roomManager: RoomManager): void {
+    const pending = autoTurnTimers.get(roomCode);
+    if (pending) {
+        clearTimeout(pending);
+        autoTurnTimers.delete(roomCode);
+    }
+
     const room = roomManager.getRoom(roomCode);
     if (!room) return;
 
-    const phase = room.engine.getPhase();
-    if (phase !== 'TRICK_PLAY' && phase !== 'VAKKAI_PLAY') return;
+    // Don't let bots play on in an abandoned room; resumes when someone rejoins
+    if (!room.engine.hasConnectedHumans()) return;
 
-    const currentTurnId = room.engine.getGameState().currentTurnId;
-    if (!currentTurnId) return;
+    const gs = room.engine.getGameState();
+    const turnId = gs.currentTurnId;
+    if (!turnId) return;
 
-    const currentPlayer = room.engine.getPlayer(currentTurnId);
-    if (!currentPlayer || currentPlayer.isConnected) return;
+    const player = room.engine.getPlayer(turnId);
+    if (!player) return;
 
-    // Auto-play after 2 seconds
-    setTimeout(() => {
-        const currentRoom = roomManager.getRoom(roomCode);
-        if (!currentRoom) return;
+    const phase = gs.phase;
+    const isPlayPhase = phase === 'TRICK_PLAY' || phase === 'VAKKAI_PLAY';
 
-        const gs = currentRoom.engine.getGameState();
-        if (gs.currentTurnId !== currentTurnId) return; // Turn already changed
+    // Full trick waiting for resolution — resolveTrickAndContinue will reschedule
+    if (isPlayPhase && isTrickComplete(gs.currentTrick, gs.vakkai.active)) return;
 
-        const p = currentRoom.engine.getPlayer(currentTurnId);
-        if (!p || p.isConnected) return; // Player reconnected
+    let delay: number;
+    if (player.isBot) {
+        if (phase === 'VAKKAI_DECISION' || phase === 'HUKUM_SELECTION') delay = BOT_DECISION_DELAY_MS;
+        else if (isPlayPhase) delay = BOT_PLAY_DELAY_MS;
+        else return;
+    } else if (!player.isConnected && isPlayPhase) {
+        delay = DISCONNECTED_PLAY_DELAY_MS;
+    } else {
+        return;
+    }
 
-        const autoResult = currentRoom.engine.autoPlayCard(currentTurnId);
-        if (autoResult) {
-            console.log(`[AUTO] Played ${autoResult.card.rank} of ${autoResult.card.suit} for disconnected player ${p.name}`);
+    const timer = setTimeout(() => {
+        autoTurnTimers.delete(roomCode);
+        runAutoTurn(roomCode, turnId, phase, roomManager);
+    }, delay);
+    autoTurnTimers.set(roomCode, timer);
+}
 
-            roomManager.broadcast(roomCode, {
-                type: 'CARD_PLAYED',
-                playerId: currentTurnId,
-                card: autoResult.card,
-            });
+/**
+ * Execute the automated action scheduled by scheduleAutoTurn.
+ */
+function runAutoTurn(roomCode: string, turnId: PlayerId, expectedPhase: string, roomManager: RoomManager): void {
+    const room = roomManager.getRoom(roomCode);
+    if (!room) return;
 
-            sendPrivateCards(roomCode, roomManager);
+    const gs = room.engine.getGameState();
+    if (gs.currentTurnId !== turnId || gs.phase !== expectedPhase) return; // State moved on
 
-            if (autoResult.trickComplete) {
-                // Show all cards for 1.5s, then resolve
-                broadcastGameState(roomCode, roomManager);
-                setTimeout(() => {
-                    resolveTrickAndContinue(roomCode, roomManager);
-                }, 1500);
+    const player = room.engine.getPlayer(turnId);
+    if (!player) return;
+    if (!player.isBot && player.isConnected) return; // Human reconnected
+
+    switch (gs.phase) {
+        case 'VAKKAI_DECISION':
+            if (shouldDeclareVakkai(player.hand)) {
+                console.log(`[BOT] ${player.name} declares Vakkai`);
+                applyDeclareVakkai(roomCode, room, turnId, roomManager);
             } else {
-                broadcastGameState(roomCode, roomManager);
-                // Chain: check if next player is also disconnected
-                autoPlayForDisconnected(roomCode, roomManager);
+                applyPassVakkai(roomCode, room, turnId, roomManager);
             }
+            return;
+
+        case 'HUKUM_SELECTION': {
+            const suit = chooseTrumpSuit(player.hand);
+            console.log(`[BOT] ${player.name} chooses ${suit} as Hukum`);
+            applyChooseHukum(roomCode, room, turnId, suit, roomManager);
+            return;
         }
-    }, 2000);
+
+        case 'TRICK_PLAY':
+        case 'VAKKAI_PLAY': {
+            const validCards = room.engine.getValidCards(turnId);
+            if (validCards.length === 0) return;
+
+            const card = player.isBot
+                ? chooseCard({
+                    validCards,
+                    trick: gs.currentTrick,
+                    trumpSuit: gs.trumpSuit,
+                    myTeam: player.team,
+                    teamOf: id => room.engine.getPlayer(id)?.team,
+                })
+                : validCards[Math.floor(Math.random() * validCards.length)];
+
+            const label = player.isBot ? 'BOT' : 'AUTO';
+            console.log(`[${label}] ${player.name} plays ${card.rank} of ${card.suit}`);
+            applyPlayCard(roomCode, room, turnId, card.id, roomManager);
+            return;
+        }
+    }
 }
 
 /**
  * Resolve a completed trick, handle hand/match end, and continue game flow.
- * Shared by handlePlayCard and autoPlayForDisconnected.
+ * Shared by human, bot and disconnected-player card plays.
  */
 function resolveTrickAndContinue(roomCode: string, roomManager: RoomManager): void {
     const room = roomManager.getRoom(roomCode);
     if (!room) return;
 
-    room.engine.resolveTrick();
+    const trickResult = room.engine.resolveTrick();
     const gameState = room.engine.getGameState();
 
-    if (gameState.phase === 'HAND_END') {
+    if (gameState.phase === 'HAND_END' && trickResult.handEnd) {
         roomManager.broadcast(roomCode, {
             type: 'HAND_END',
-            winnerTeam: gameState.dealerTeam!,
-            points: 0,
-            reason: 'Hand completed',
+            winnerTeam: trickResult.handEnd.team,
+            points: trickResult.handEnd.points,
+            reason: trickResult.handEnd.reason,
         });
 
         broadcastGameState(roomCode, roomManager);
@@ -211,7 +281,7 @@ function resolveTrickAndContinue(roomCode: string, roomManager: RoomManager): vo
                     sendPrivateCards(roomCode, roomManager);
                     broadcastGameState(roomCode, roomManager);
                     // Chain: check if next player is disconnected
-                    autoPlayForDisconnected(roomCode, roomManager);
+                    scheduleAutoTurn(roomCode, roomManager);
                 } else {
                     console.error(`[ERROR] Failed to auto-select dealer in room ${roomCode}`);
                 }
@@ -228,7 +298,7 @@ function resolveTrickAndContinue(roomCode: string, roomManager: RoomManager): vo
     } else {
         broadcastGameState(roomCode, roomManager);
         // Chain: check if next player is disconnected
-        autoPlayForDisconnected(roomCode, roomManager);
+        scheduleAutoTurn(roomCode, roomManager);
     }
 }
 
@@ -308,6 +378,8 @@ function handleJoinRoom(socket: WebSocket, roomCode: string, playerName: string,
                 });
 
                 broadcastGameState(roomCode, roomManager);
+                // Resume bots if they were paused because no humans were connected
+                scheduleAutoTurn(roomCode, roomManager);
                 console.log(`[REJOIN] Player ${playerName} rejoined room ${roomCode} at seat ${reconnected.seat}`);
                 return;
             }
@@ -349,6 +421,7 @@ function handleJoinRoom(socket: WebSocket, roomCode: string, playerName: string,
             isReady: player.isReady,
             isConnected: player.isConnected,
             wantsSwitch: player.wantsSwitch,
+            isBot: player.isBot,
         },
     }, playerId);
 
@@ -425,45 +498,150 @@ function handleReady(socket: WebSocket, roomManager: RoomManager): void {
     // Broadcast updated game state so UI reflects ready status
     broadcastGameState(roomCode, roomManager);
 
-    // Check if all ready
-    if (room.engine.allPlayersReady()) {
-        console.log('[GAME] All players ready - starting game');
+    startGameIfAllReady(roomCode, room, roomManager);
+}
 
-        // Start game with initial toss
-        const tossResult = room.engine.performInitialToss();
+/**
+ * Start the match (toss + first deal) once 4 players are seated and ready.
+ */
+function startGameIfAllReady(roomCode: string, room: RoomEntry, roomManager: RoomManager): void {
+    if (!room.engine.allPlayersReady()) return;
 
-        // Send toss result
-        const tossCards: Record<PlayerId, any> = {};
-        for (const [pid, card] of tossResult.cards) {
-            tossCards[pid] = card;
-        }
+    console.log('[GAME] All players ready - starting game');
 
-        roomManager.broadcast(roomCode, {
-            type: 'TOSS_RESULT',
-            cards: tossCards,
-            dealerTeam: tossResult.dealerTeam,
-            trumpTeam: tossResult.trumpTeam,
-        });
+    // Start game with initial toss
+    const tossResult = room.engine.performInitialToss();
 
-        // Deal first 4 cards
-        room.engine.dealFirstHalf();
-
-        // Send game state to all
-        broadcastGameState(roomCode, roomManager);
-
-        // Send private cards to each player
-        sendPrivateCards(roomCode, roomManager);
+    // Send toss result
+    const tossCards: Record<PlayerId, any> = {};
+    for (const [pid, card] of tossResult.cards) {
+        tossCards[pid] = card;
     }
+
+    roomManager.broadcast(roomCode, {
+        type: 'TOSS_RESULT',
+        cards: tossCards,
+        dealerTeam: tossResult.dealerTeam,
+        trumpTeam: tossResult.trumpTeam,
+    });
+
+    // Deal first 4 cards
+    room.engine.dealFirstHalf();
+
+    // Send game state to all
+    broadcastGameState(roomCode, roomManager);
+
+    // Send private cards to each player
+    sendPrivateCards(roomCode, roomManager);
+
+    // First Vakkai decision may belong to a bot
+    scheduleAutoTurn(roomCode, roomManager);
+}
+
+function handleAddBot(socket: WebSocket, team: TeamId, roomManager: RoomManager): void {
+    const { roomCode, room } = getPlayerContext(socket, roomManager);
+    if (!room) return;
+
+    const phase = room.engine.getPhase();
+    if (phase !== 'WAITING_FOR_PLAYERS' && phase !== 'READY_CHECK') {
+        sendError(socket, 'Bots can only be added before the game starts');
+        return;
+    }
+
+    if (team !== 'A' && team !== 'B') {
+        sendError(socket, 'Invalid team');
+        return;
+    }
+
+    const bot = roomManager.addBot(roomCode, team);
+    if (!bot) {
+        sendError(socket, 'That team is full');
+        return;
+    }
+
+    console.log(`[BOT] ${bot.name} added to Team ${team} in room ${roomCode}`);
+
+    if (room.engine.getAllPlayers().length === 4 && room.engine.getPhase() === 'WAITING_FOR_PLAYERS') {
+        room.engine.startReadyCheck();
+    }
+
+    broadcastGameState(roomCode, roomManager);
+
+    // If every human was already ready, the bot completes the table
+    startGameIfAllReady(roomCode, room, roomManager);
+}
+
+function handleRemoveBot(socket: WebSocket, botId: PlayerId, roomManager: RoomManager): void {
+    const { roomCode, room } = getPlayerContext(socket, roomManager);
+    if (!room) return;
+
+    const phase = room.engine.getPhase();
+    if (phase !== 'WAITING_FOR_PLAYERS' && phase !== 'READY_CHECK') {
+        sendError(socket, 'Bots can only be removed before the game starts');
+        return;
+    }
+
+    const bot = room.engine.getPlayer(botId);
+    if (!bot || !bot.isBot) {
+        sendError(socket, 'Not a bot');
+        return;
+    }
+
+    roomManager.removePlayer(roomCode, botId);
+    console.log(`[BOT] ${bot.name} removed from room ${roomCode}`);
+
+    // Same as a human leaving the lobby: back to waiting
+    room.engine.forceReset();
+    roomManager.broadcast(roomCode, { type: 'PLAYER_LEFT', playerId: botId });
+    broadcastGameState(roomCode, roomManager);
 }
 
 function handlePassVakkai(socket: WebSocket, roomManager: RoomManager): void {
     const { playerId, roomCode, room } = getPlayerContext(socket, roomManager);
     if (!room) return;
 
-    if (!room.engine.passVakkai(playerId)) {
+    if (!applyPassVakkai(roomCode, room, playerId, roomManager)) {
         sendError(socket, 'Cannot pass Vakkai now');
-        return;
     }
+}
+
+function handleDeclareVakkai(socket: WebSocket, roomManager: RoomManager): void {
+    const { playerId, roomCode, room } = getPlayerContext(socket, roomManager);
+    if (!room) return;
+
+    if (!applyDeclareVakkai(roomCode, room, playerId, roomManager)) {
+        const eligible = isVakkaiEligible(room.engine.getPlayerHand(playerId));
+        sendError(socket, eligible
+            ? 'Cannot declare Vakkai now'
+            : 'Vakkai needs exactly 3 cards of one suit and 1 card of another');
+    }
+}
+
+function handleChooseHukum(socket: WebSocket, suit: Suit, roomManager: RoomManager): void {
+    const { playerId, roomCode, room } = getPlayerContext(socket, roomManager);
+    if (!room) return;
+
+    if (!SUITS.includes(suit) || !applyChooseHukum(roomCode, room, playerId, suit, roomManager)) {
+        sendError(socket, 'Cannot choose Hukum now');
+    }
+}
+
+function handlePlayCard(socket: WebSocket, cardId: string, roomManager: RoomManager): void {
+    const { playerId, roomCode, room } = getPlayerContext(socket, roomManager);
+    if (!room) return;
+
+    const error = applyPlayCard(roomCode, room, playerId, cardId, roomManager);
+    if (error) {
+        sendError(socket, error);
+    }
+}
+
+// ============================================
+// SHARED ACTIONS (used by humans and bots)
+// ============================================
+
+function applyPassVakkai(roomCode: string, room: RoomEntry, playerId: PlayerId, roomManager: RoomManager): boolean {
+    if (!room.engine.passVakkai(playerId)) return false;
 
     roomManager.broadcast(roomCode, {
         type: 'VAKKAI_PASSED',
@@ -471,16 +649,12 @@ function handlePassVakkai(socket: WebSocket, roomManager: RoomManager): void {
     });
 
     broadcastGameState(roomCode, roomManager);
+    scheduleAutoTurn(roomCode, roomManager);
+    return true;
 }
 
-function handleDeclareVakkai(socket: WebSocket, roomManager: RoomManager): void {
-    const { playerId, roomCode, room } = getPlayerContext(socket, roomManager);
-    if (!room) return;
-
-    if (!room.engine.declareVakkai(playerId)) {
-        sendError(socket, 'Cannot declare Vakkai now');
-        return;
-    }
+function applyDeclareVakkai(roomCode: string, room: RoomEntry, playerId: PlayerId, roomManager: RoomManager): boolean {
+    if (!room.engine.declareVakkai(playerId)) return false;
 
     roomManager.broadcast(roomCode, {
         type: 'VAKKAI_DECLARED',
@@ -490,16 +664,12 @@ function handleDeclareVakkai(socket: WebSocket, roomManager: RoomManager): void 
     // Send remaining cards
     sendPrivateCards(roomCode, roomManager);
     broadcastGameState(roomCode, roomManager);
+    scheduleAutoTurn(roomCode, roomManager);
+    return true;
 }
 
-function handleChooseHukum(socket: WebSocket, suit: Suit, roomManager: RoomManager): void {
-    const { playerId, roomCode, room } = getPlayerContext(socket, roomManager);
-    if (!room) return;
-
-    if (!room.engine.chooseHukum(playerId, suit)) {
-        sendError(socket, 'Cannot choose Hukum now');
-        return;
-    }
+function applyChooseHukum(roomCode: string, room: RoomEntry, playerId: PlayerId, suit: Suit, roomManager: RoomManager): boolean {
+    if (!room.engine.chooseHukum(playerId, suit)) return false;
 
     roomManager.broadcast(roomCode, {
         type: 'HUKUM_CHOSEN',
@@ -510,20 +680,21 @@ function handleChooseHukum(socket: WebSocket, suit: Suit, roomManager: RoomManag
     // Send remaining cards
     sendPrivateCards(roomCode, roomManager);
     broadcastGameState(roomCode, roomManager);
+    scheduleAutoTurn(roomCode, roomManager);
+    return true;
 }
 
-function handlePlayCard(socket: WebSocket, cardId: string, roomManager: RoomManager): void {
-    const { playerId, roomCode, room } = getPlayerContext(socket, roomManager);
-    if (!room) return;
-
+/**
+ * Play a card. Returns an error message, or null on success.
+ */
+function applyPlayCard(roomCode: string, room: RoomEntry, playerId: PlayerId, cardId: string, roomManager: RoomManager): string | null {
     const player = room.engine.getPlayer(playerId);
     const card = player?.hand.find(c => c.id === cardId);
 
     const result = room.engine.playCard(playerId, cardId);
 
-    if (!result.success) {
-        sendError(socket, result.error || 'Cannot play card');
-        return;
+    if (!result.success || !card) {
+        return result.error || 'Cannot play card';
     }
 
     // Broadcast card played
@@ -537,16 +708,19 @@ function handlePlayCard(socket: WebSocket, cardId: string, roomManager: RoomMana
     sendPrivateCards(roomCode, roomManager);
 
     if (result.trickComplete) {
-        // Broadcast state with ALL 4 cards visible
+        // Broadcast state with ALL cards visible
         broadcastGameState(roomCode, roomManager);
 
-        // Wait 1.5s so players can see all 4 cards, then resolve
+        // Wait 1.5s so players can see all cards, then resolve
         setTimeout(() => {
             resolveTrickAndContinue(roomCode, roomManager);
         }, 1500);
     } else {
         broadcastGameState(roomCode, roomManager);
+        scheduleAutoTurn(roomCode, roomManager);
     }
+
+    return null;
 }
 
 function handleSelectDealer(socket: WebSocket, dealerId: PlayerId, roomManager: RoomManager): void {
@@ -561,6 +735,7 @@ function handleSelectDealer(socket: WebSocket, dealerId: PlayerId, roomManager: 
     // Send new game state and cards
     sendPrivateCards(roomCode, roomManager);
     broadcastGameState(roomCode, roomManager);
+    scheduleAutoTurn(roomCode, roomManager);
 }
 
 function handleChatMessage(socket: WebSocket, text: string, roomManager: RoomManager): void {

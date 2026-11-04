@@ -1,381 +1,455 @@
 // ============================================
-// HUKUM GAME - GAME TABLE COMPONENT
+// HUKUM GAME - GAME TABLE
+// Room scene with oval felt; partner on top, opponents left/right,
+// you bottom-left, your hand fanned at the bottom, trick in the middle.
 // ============================================
 
-import { useRef, useEffect } from 'react';
-import gsap from 'gsap';
-import type { PublicGameState, Card as CardType, PlayerId } from '../types';
-import { SUIT_SYMBOLS } from '../types';
-import { Card } from './Card';
+import { useEffect, useLayoutEffect, useState, useSyncExternalStore } from 'react';
+import type { PublicGameState, PublicPlayer, Card, PlayerId, Suit, TeamId } from '../types';
+import type { HandResult } from '../hooks/useWebSocket';
+import { formatScore, getTrickWinnerId } from '../gameUtils';
+import { TableScene, Loader } from './scene/Scene';
+import { PlayingCard, CardFan } from './cards/PlayingCard';
+import { SuitIcon } from './cards/SuitIcon';
+import { SUIT_LABEL } from './cards/suitLabels';
 import { PlayerHand } from './PlayerHand';
 import { ActionButtons } from './ActionButtons';
+import { WaitingRoom } from './WaitingRoom';
+import { AvatarFrame } from './player/AvatarFrame';
+import { Modal } from './ui/Modal';
+import { CloudIcon, GearIcon, SmileIcon, TrophyIcon } from './ui/Icons';
 import { playSound } from '../audio/soundManager';
+import { DealDirector, selectCount, selectHand, type DealSnapshot } from './deal/DealDirector';
+import { DealLayer } from './deal/AnimationController';
 import './GameTable.css';
 
 interface GameTableProps {
     gameState: PublicGameState;
-    myCards: CardType[];
+    myCards: Card[];
     playerId: string;
     roomCode: string;
+    lastHandResult: HandResult | null;
+    unreadCount: number;
     onPassVakkai: () => void;
     onDeclareVakkai: () => void;
-    onChooseHukum: (suit: any) => void;
+    onChooseHukum: (suit: Suit) => void;
     onPlayCard: (cardId: string) => void;
-    onSelectDealer: (dealerId: PlayerId) => void;
     onReady: () => void;
     onToggleSwitchRequest: () => void;
+    onAddBot: (team: TeamId) => void;
+    onRemoveBot: (botId: PlayerId) => void;
     onNewGame: () => void;
     onGoHome: () => void;
+    onOpenChat: () => void;
+    onOpenRules: () => void;
+    onOpenSettings: () => void;
 }
 
-export function GameTable({
+type SeatPos = 'bottom' | 'left' | 'top' | 'right';
+// Same seat layout as before the redesign: next seat in turn order appears on the right
+const POSITIONS: SeatPos[] = ['bottom', 'right', 'top', 'left'];
+const TEAM_NAME: Record<TeamId, string> = { A: 'Alpha', B: 'Bravo' };
+
+export function GameTable(props: GameTableProps) {
+    const { gameState, myCards, playerId } = props;
+
+    // Presentation-only deal controller. Lives here (not in Table) so it sees the
+    // waiting room → first deal transition, but a mid-hand reconnect starts with no history.
+    const [director] = useState(() => new DealDirector());
+    const deal = useSyncExternalStore(director.subscribe, director.getSnapshot);
+    useLayoutEffect(() => {
+        director.observe(gameState, myCards, playerId);
+    }, [director, gameState, myCards, playerId]);
+    useEffect(() => () => director.dispose(), [director]);
+
+    if (gameState.phase === 'WAITING_FOR_PLAYERS' || gameState.phase === 'READY_CHECK') {
+        return (
+            <WaitingRoom
+                gameState={gameState}
+                playerId={props.playerId}
+                roomCode={props.roomCode}
+                unreadCount={props.unreadCount}
+                onReady={props.onReady}
+                onToggleSwitchRequest={props.onToggleSwitchRequest}
+                onAddBot={props.onAddBot}
+                onRemoveBot={props.onRemoveBot}
+                onOpenChat={props.onOpenChat}
+                onOpenRules={props.onOpenRules}
+                onOpenSettings={props.onOpenSettings}
+            />
+        );
+    }
+
+    return <Table {...props} deal={deal} director={director} />;
+}
+
+function Table({
     gameState,
     myCards,
     playerId,
-    roomCode,
+    lastHandResult,
+    unreadCount,
     onPassVakkai,
     onDeclareVakkai,
     onChooseHukum,
     onPlayCard,
-    onReady,
-    onToggleSwitchRequest,
     onNewGame,
     onGoHome,
-}: GameTableProps) {
-    const tableRef = useRef<HTMLDivElement>(null);
+    onOpenChat,
+    onOpenSettings,
+    deal,
+    director,
+}: GameTableProps & { deal: DealSnapshot; director: DealDirector }) {
+    const [selected, setSelected] = useState<Card | null>(null);
 
-    const myPlayer = gameState.players.find(p => p.id === playerId);
+    const { phase, vakkai, currentTrick, trumpSuit, score, trickCounts } = gameState;
+    const me = gameState.players.find(p => p.id === playerId);
+    const myTeam: TeamId = me?.team ?? 'A';
+    const byId = (id: PlayerId | null) => gameState.players.find(p => p.id === id);
+
+    // While cards are being dealt the table is presentation-only: no input, no trick, no decisions
+    const dealing = deal.job !== null;
+    const shuffling = dealing && (deal.stage === 'DECK_ENTERING' || deal.stage === 'SHUFFLING' || deal.stage === 'SHUFFLE_COMPLETE') && deal.job!.shuffle;
+    const handCards = selectHand(deal, myCards, playerId, me?.cardCount ?? 0, phase);
+
+    const isPlayPhase = phase === 'TRICK_PLAY' || phase === 'VAKKAI_PLAY';
     const isMyTurn = gameState.currentTurnId === playerId;
-    const isTrumpChooser = gameState.trumpChooserId === playerId;
-    const amIReady = myPlayer?.isReady ?? false;
+    const trickFull = currentTrick.cards.length >= (vakkai.active ? 3 : 4);
+    const canPlay = isPlayPhase && isMyTurn && !trickFull && !dealing;
+    const isOver = phase === 'HAND_END' || phase === 'MATCH_END';
 
-    // Team rosters
-    const teamAlpha = gameState.players.filter(p => p.team === 'A');
-    const teamBravo = gameState.players.filter(p => p.team === 'B');
+    const declarer = vakkai.active ? byId(vakkai.declarerId) : undefined;
+    const sittingOutId = declarer
+        ? gameState.players.find(p => p.team === declarer.team && p.id !== declarer.id)?.id
+        : undefined;
 
-    // Key players
-    const dealerPlayer = gameState.dealerId ? gameState.players.find(p => p.id === gameState.dealerId) : null;
-    const trumpChooserPlayer = gameState.trumpChooserId ? gameState.players.find(p => p.id === gameState.trumpChooserId) : null;
+    const trickWinnerId = trickFull ? getTrickWinnerId(currentTrick, trumpSuit) : null;
+    const posOf = (seat: number): SeatPos => POSITIONS[(seat - (me?.seat ?? 0) + 4) % 4];
 
-    // Copy room ID to clipboard
-    const copyRoomId = () => {
-        navigator.clipboard.writeText(roomCode);
+    // Targets: trump team 5 tricks, dealer team 4 (Vakkai: declarer needs 4 in a row)
+    const targetOf = (team: TeamId): number | null => {
+        if (vakkai.active || !gameState.trumpTeam || !trumpSuit) return null;
+        return team === gameState.trumpTeam ? 5 : 4;
     };
 
-    // Seat positions relative to current player
-    const getSeatPosition = (seat: number) => {
-        if (!myPlayer) return 'bottom';
-        const relativeSeat = (seat - myPlayer.seat + 4) % 4;
-        const positions = ['bottom', 'right', 'top', 'left'];
-        return positions[relativeSeat];
-    };
-
-    // Entry animation
+    // ---- Sounds (unchanged from before the redesign) ----
     useEffect(() => {
-        if (tableRef.current) {
-            gsap.fromTo(tableRef.current,
-                { opacity: 0, scale: 0.95 },
-                { opacity: 1, scale: 1, duration: 0.5, ease: 'power2.out' }
-            );
-        }
-    }, []);
+        if (canPlay) playSound('turnNotify');
+    }, [canPlay]);
 
-    // Sound: your turn
     useEffect(() => {
-        if (isMyTurn && (gameState.phase === 'TRICK_PLAY' || gameState.phase === 'VAKKAI_PLAY')) {
-            playSound('turnNotify');
-        }
-    }, [isMyTurn, gameState.phase]);
+        if (phase === 'HAND_END') playSound('trickWin');
+        if (phase === 'MATCH_END') playSound(score[myTeam] > 0 ? 'matchWin' : 'matchLose');
+        // Only react to phase changes
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [phase]);
 
-    // Sound: match end
-    useEffect(() => {
-        if (gameState.phase === 'MATCH_END' && myPlayer) {
-            const myTeamScore = gameState.score[myPlayer.team];
-            const otherTeamScore = gameState.score[myPlayer.team === 'A' ? 'B' : 'A'];
-            if (myTeamScore > otherTeamScore) {
-                playSound('matchWin');
-            } else {
-                playSound('matchLose');
+    // ---- Status text ----
+    const status = (() => {
+        const current = byId(gameState.currentTurnId);
+        const who = current?.id === playerId ? 'You' : current?.name ?? 'Someone';
+        if (dealing) return { text: shuffling ? 'Shuffling…' : 'Dealing…', tone: 'info' as const };
+        switch (phase) {
+            case 'INITIAL_TOSS':
+            case 'DEALING_FIRST':
+            case 'DEALING_SECOND':
+            case 'DEALER_SELECTION':
+                return { text: 'Dealing…', tone: 'info' as const };
+            case 'VAKKAI_DECISION':
+                return isMyTurn ? null : { text: `${who} is thinking about Vakkai…`, tone: 'info' as const };
+            case 'HUKUM_SELECTION':
+                return gameState.trumpChooserId === playerId
+                    ? null
+                    : { text: `${byId(gameState.trumpChooserId)?.name ?? 'Someone'} is choosing Hukum…`, tone: 'info' as const };
+            case 'TRICK_PLAY':
+            case 'VAKKAI_PLAY': {
+                if (trickWinnerId) {
+                    const w = byId(trickWinnerId);
+                    const mine = w?.team === myTeam;
+                    return { text: w?.id === playerId ? 'You win the trick!' : `${w?.name} wins the trick!`, tone: mine ? 'good' as const : 'bad' as const };
+                }
+                if (sittingOutId === playerId) return { text: `You sit out · ${declarer?.name} plays Vakkai`, tone: 'info' as const };
+                if (canPlay) {
+                    if (selected && myCards.some(c => c.id === selected.id)) {
+                        return { text: 'Tap again to play', tone: 'turn' as const };
+                    }
+                    const lead = currentTrick.leadSuit;
+                    if (lead && myCards.some(c => c.suit === lead)) {
+                        return { text: `Your turn · follow ${SUIT_LABEL[lead]}`, tone: 'turn' as const, suit: lead };
+                    }
+                    return { text: 'Your turn!', tone: 'turn' as const };
+                }
+                return { text: `${who}'s turn`, tone: 'info' as const };
             }
+            default:
+                return null;
         }
-    }, [gameState.phase]);
+    })();
 
-    // Sound: hand end
-    useEffect(() => {
-        if (gameState.phase === 'HAND_END') {
-            playSound('trickWin');
-        }
-    }, [gameState.phase]);
+    const showDecision = !dealing && (
+        (phase === 'VAKKAI_DECISION' && isMyTurn) ||
+        (phase === 'HUKUM_SELECTION' && gameState.trumpChooserId === playerId));
+
+    const opponents = gameState.players.filter(p => p.id !== playerId);
 
     return (
-        <div className="game-table-container">
-            <div className="game-table" ref={tableRef}>
-                {/* Room code and info bar */}
-                <div className="info-bar">
-                    <div className="room-info" onClick={copyRoomId} title="Click to copy Room ID" style={{ cursor: 'pointer' }}>
-                        Room: <strong>{roomCode}</strong> 📋
-                    </div>
+        <main className="tbl">
+            <TableScene />
 
-                    {dealerPlayer && (
-                        <div className="info-item">
-                            Dealer: <strong>{dealerPlayer.name}</strong>
-                        </div>
-                    )}
-
-                    {trumpChooserPlayer && gameState.trumpSuit && (
-                        <div className="info-item">
-                            Trump by: <strong>{trumpChooserPlayer.name}</strong>
-                        </div>
-                    )}
-
-                    {gameState.trumpSuit && (
-                        <div className="trump-info">
-                            Trump: <span className={`trump-suit ${gameState.trumpSuit.toLowerCase()}`}>
-                                {SUIT_SYMBOLS[gameState.trumpSuit]}
-                            </span>
-                        </div>
-                    )}
-
-                    <div className="tricks-info">
-                        Tricks: <span className="team-a">{gameState.trickCounts.A}</span>
-                        <span className="separator">-</span>
-                        <span className="team-b">{gameState.trickCounts.B}</span>
-                    </div>
-
-                    <div className="score-bar">
-                        <span className="team-a">A: {gameState.score.A}</span>
-                        <span className="separator">|</span>
-                        <span className="team-b">B: {gameState.score.B}</span>
-                    </div>
+            {/* ---- HUD: score (left), actions (right) ---- */}
+            <header className="tbl-score" aria-label="Score">
+                <div className="scoreboard">
+                    {(['A', 'B'] as TeamId[]).map(team => {
+                        const target = targetOf(team);
+                        return (
+                            <div key={team} className={`sb-team team-${team.toLowerCase()} ${team === myTeam ? 'mine' : ''}`}>
+                                <span className="sb-name">{TEAM_NAME[team]}{team === myTeam && <span className="sb-you">YOU</span>}</span>
+                                <span className="sb-score">{formatScore(score[team])}</span>
+                                <span className="sb-tricks" aria-label={`${trickCounts[team]} tricks${target ? ` of ${target}` : ''}`}>
+                                    <TrickDots won={trickCounts[team]} target={target} />
+                                </span>
+                            </div>
+                        );
+                    })}
                 </div>
+                <HukumBadge suit={trumpSuit} vakkai={vakkai.active} wins={vakkai.consecutiveWins} />
+            </header>
 
-                {/* Felt table with trick cards */}
-                <div className="felt-table">
-                    <div className="trick-area">
-                        {gameState.currentTrick.cards.map((tc) => {
-                            const player = gameState.players.find(p => p.id === tc.playerId);
-                            const position = player ? getSeatPosition(player.seat) : 'center';
+            <div className="tbl-actions">
+                <button type="button" className="icon-btn yellow" onClick={onOpenSettings} aria-label="Settings and rules"><GearIcon /></button>
+            </div>
+
+            {/* ---- Seats ---- */}
+            {opponents.map(p => (
+                <Seat
+                    key={p.id}
+                    player={p}
+                    cardCount={selectCount(deal, p.id, p.cardCount)}
+                    position={posOf(p.seat)}
+                    isPartner={p.team === myTeam}
+                    isTurn={!dealing && p.id === gameState.currentTurnId && !trickFull && !isOver && phase !== 'HUKUM_SELECTION'}
+                    isChoosing={!dealing && phase === 'HUKUM_SELECTION' && p.id === gameState.trumpChooserId}
+                    isDealer={p.id === gameState.dealerId}
+                    isDeclarer={vakkai.active && p.id === vakkai.declarerId}
+                    isSittingOut={p.id === sittingOutId}
+                />
+            ))}
+
+            {/* ---- Centre: trick or decision ---- */}
+            <section className="tbl-center" aria-label="Table">
+                {showDecision ? (
+                    <ActionButtons
+                        phase={phase}
+                        isMyTurn={isMyTurn}
+                        isTrumpChooser={gameState.trumpChooserId === playerId}
+                        myCards={myCards}
+                        onPassVakkai={onPassVakkai}
+                        onDeclareVakkai={onDeclareVakkai}
+                        onChooseHukum={onChooseHukum}
+                    />
+                ) : (
+                    <div className="trick" aria-label="Current trick" data-deal-center>
+                        {!dealing && currentTrick.cards.map(tc => {
+                            const p = byId(tc.playerId);
                             return (
-                                <div key={tc.playerId} className={`trick-card ${position}`}>
-                                    <Card card={tc.card} isInTrick />
+                                <div key={tc.playerId} className={`trick-slot ${p ? posOf(p.seat) : 'bottom'}`}>
+                                    <PlayingCard card={tc.card} isInTrick isWinner={trickWinnerId === tc.playerId} />
                                 </div>
                             );
                         })}
                     </div>
+                )}
+
+                {status && (
+                    <div className={`status ${status.tone}`} aria-live="polite" key={status.text}>
+                        {'suit' in status && status.suit && <SuitIcon suit={status.suit} outlined className="status-suit" />}
+                        <span>{status.text}</span>
+                    </div>
+                )}
+            </section>
+
+            {/* ---- Me ---- */}
+            {me && (
+                <div className="tbl-me">
+                    <AvatarFrame
+                        name={me.name}
+                        team={me.team}
+                        size="md"
+                        isTurn={!dealing && (isMyTurn && !trickFull && !isOver && (isPlayPhase || phase === 'VAKKAI_DECISION') || (phase === 'HUKUM_SELECTION' && gameState.trumpChooserId === playerId))}
+                        isDim={sittingOutId === playerId}
+                    >
+                        {me.id === gameState.dealerId && <span className="av-badge dealer" title="Dealer">D</span>}
+                        {vakkai.active && me.id === vakkai.declarerId && <span className="av-badge vakkai" title="Vakkai">V</span>}
+                    </AvatarFrame>
+                    <span className="nameplate me-plate">You</span>
                 </div>
-
-                {/* Other players */}
-                {gameState.players
-                    .filter(p => p.id !== playerId)
-                    .map(player => {
-                        const position = getSeatPosition(player.seat);
-                        return (
-                            <div key={player.id} className={`opponent ${position} ${!player.isConnected ? 'disconnected' : ''}`}>
-                                <div className="opponent-info">
-                                    <span className={`team-badge team-${player.team.toLowerCase()}`}>
-                                        {player.team}
-                                    </span>
-                                    <span className="opponent-name">{player.name}</span>
-                                    {!player.isConnected && (
-                                        <span className="disconnected-label">Disconnected</span>
-                                    )}
-                                    {player.isConnected && gameState.currentTurnId === player.id && (
-                                        <span className="turn-dot" />
-                                    )}
-                                </div>
-                                <div className="opponent-cards">
-                                    {Array.from({ length: player.cardCount }).map((_, i) => (
-                                        <div key={i} className="card-back-mini" />
-                                    ))}
-                                </div>
-                                <div className="trick-count">{gameState.trickCounts[player.team]} tricks</div>
-                            </div>
-                        );
-                    })}
-
-                {/* Team selection and Ready */}
-                {(gameState.phase === 'READY_CHECK' || gameState.phase === 'WAITING_FOR_PLAYERS') && (
-                    <div className="lobby-container">
-                        <div className="team-columns">
-                            {/* Team Alpha (Blue) */}
-                            <div className="team-column team-alpha">
-                                <div className="team-header">Team Alpha</div>
-                                <div className="player-list">
-                                    {teamAlpha.map((player, idx) => (
-                                        <div key={player.id} className="player-row">
-                                            <span className="player-number">{idx + 1}.</span>
-                                            <span className="player-name">{player.name}</span>
-                                            {player.wantsSwitch && <span className="switch-indicator">Switch</span>}
-                                            <span className={`player-status ${player.isReady ? 'ready' : 'not-ready'}`}>
-                                                {player.isReady ? 'READY' : 'NOT READY'}
-                                            </span>
-                                        </div>
-                                    ))}
-                                    {teamAlpha.length < 2 && (
-                                        <div className="player-row empty">
-                                            <span className="player-number">{teamAlpha.length + 1}.</span>
-                                            <span className="player-name">Waiting...</span>
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-
-                            {/* Team Bravo (Red) */}
-                            <div className="team-column team-bravo">
-                                <div className="team-header">Team Bravo</div>
-                                <div className="player-list">
-                                    {teamBravo.map((player, idx) => (
-                                        <div key={player.id} className="player-row">
-                                            <span className="player-number">{idx + 1}.</span>
-                                            <span className="player-name">{player.name}</span>
-                                            {player.wantsSwitch && <span className="switch-indicator">Switch</span>}
-                                            <span className={`player-status ${player.isReady ? 'ready' : 'not-ready'}`}>
-                                                {player.isReady ? 'READY' : 'NOT READY'}
-                                            </span>
-                                        </div>
-                                    ))}
-                                    {teamBravo.length < 2 && (
-                                        <div className="player-row empty">
-                                            <span className="player-number">{teamBravo.length + 1}.</span>
-                                            <span className="player-name">Waiting...</span>
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-                        </div>
-
-                        <div className="lobby-actions">
-                            {gameState.players.length === 4 && (
-                                <button
-                                    className={`action-btn switch-teams-btn ${myPlayer?.wantsSwitch ? 'active' : ''}`}
-                                    onClick={onToggleSwitchRequest}
-                                >
-                                    {myPlayer?.wantsSwitch ? 'Switch Requested' : 'Request Team Switch'}
-                                </button>
-                            )}
-                            <button
-                                className="action-btn copy-room-btn"
-                                onClick={copyRoomId}
-                            >
-                                Copy Room ID
-                            </button>
-                        </div>
-
-                        {gameState.players.length < 4 && (
-                            <div className="team-instruction">
-                                👥 Waiting for {4 - gameState.players.length} more player(s)...
-                            </div>
-                        )}
-
-                        {gameState.players.length === 4 && teamAlpha.length !== 2 && (
-                            <div className="team-instruction warning">
-                                ⚠️ Teams must be balanced (2v2) to start the game
-                            </div>
-                        )}
-
-                        <div className="party-id">
-                            Party ID: <strong>{roomCode}</strong>
-                        </div>
-
-                        {!amIReady ? (
-                            <button
-                                className="ready-btn"
-                                onClick={onReady}
-                                disabled={teamAlpha.length !== 2 || teamBravo.length !== 2}
-                            >
-                                Ready to Play
-                            </button>
-                        ) : (
-                            <div className="ready-status">You are ready! Waiting for others...</div>
-                        )}
-                    </div>
-                )}
-
-                {/* Match End */}
-                {gameState.phase === 'MATCH_END' && (
-                    <div className="match-end-overlay">
-                        <div className="match-result">
-                            <h2>MATCH OVER</h2>
-                            <div className="final-score">
-                                <div className="team-score team-a">
-                                    <div className="team-label">Team Alpha</div>
-                                    <div className="score-value">{gameState.score.A}</div>
-                                </div>
-                                <div className="vs">VS</div>
-                                <div className="team-score team-b">
-                                    <div className="team-label">Team Bravo</div>
-                                    <div className="score-value">{gameState.score.B}</div>
-                                </div>
-                            </div>
-                            <div className="winner-announcement">
-                                {gameState.score.A > gameState.score.B ? 'Team Alpha Wins! 🏆' :
-                                    gameState.score.B > gameState.score.A ? 'Team Bravo Wins! 🏆' : 'It\'s a Tie!'}
-                            </div>
-                            <div className="match-end-actions">
-                                <button className="match-end-btn new-game-btn" onClick={onNewGame}>
-                                    Rematch
-                                </button>
-                                <button className="match-end-btn home-btn" onClick={onGoHome}>
-                                    Home
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                )}
-
-                {/* Hand End */}
-                {gameState.phase === 'HAND_END' && (
-                    <div className="hand-end-overlay">
-                        <div className="hand-result">
-                            <h3>HAND COMPLETE</h3>
-                            <div className="hand-winner">
-                                {gameState.dealerTeam === 'A' ? 'Team Alpha' : 'Team Bravo'} wins this hand!
-                            </div>
-                            <div className="current-score">
-                                <div className="score-row">
-                                    <span className="team-name team-a">Team Alpha:</span>
-                                    <span className="score-points">{gameState.score.A}</span>
-                                </div>
-                                <div className="score-row">
-                                    <span className="team-name team-b">Team Bravo:</span>
-                                    <span className="score-points">{gameState.score.B}</span>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                )}
-
-
-
-                {/* Phase-specific message */}
-                {gameState.phase === 'VAKKAI_PLAY' && gameState.vakkai.active && (
-                    <div className="vakkai-banner">
-                        ⚡ VAKKAI MODE ⚡
-                        <span className="vakkai-wins">
-                            {gameState.vakkai.consecutiveWins}/4 consecutive wins
-                        </span>
-                    </div>
-                )}
-            </div>
-
-            {/* My hand */}
-            {myCards.length > 0 && (
-                <PlayerHand
-                    cards={myCards}
-                    isMyTurn={isMyTurn && (gameState.phase === 'TRICK_PLAY' || gameState.phase === 'VAKKAI_PLAY')}
-                    onPlayCard={onPlayCard}
-                />
             )}
 
-            {/* Action buttons */}
-            <ActionButtons
-                phase={gameState.phase}
-                isMyTurn={isMyTurn}
-                isTrumpChooser={isTrumpChooser}
-                onPassVakkai={onPassVakkai}
-                onDeclareVakkai={onDeclareVakkai}
-                onChooseHukum={onChooseHukum}
-            />
+            <button type="button" className="tbl-chat" onClick={onOpenChat} aria-label={`Chat${unreadCount ? `, ${unreadCount} unread` : ''}`}>
+                <SmileIcon />
+                <span>Chat</span>
+                {unreadCount > 0 && <span className="badge">{unreadCount}</span>}
+            </button>
+
+            {/* ---- Hand ---- */}
+            <div className="tbl-hand">
+                <PlayerHand
+                    cards={handCards}
+                    canPlay={canPlay}
+                    leadSuit={currentTrick.leadSuit}
+                    isSittingOut={sittingOutId === playerId}
+                    onPlayCard={onPlayCard}
+                    onSelectionChange={setSelected}
+                />
+            </div>
+
+            {/* ---- Shuffle + deal (presentation only) ---- */}
+            {deal.job && <DealLayer key={deal.job.id} director={director} jobId={deal.job.id} myId={playerId} />}
+
+            {/* ---- Results ---- */}
+            {phase === 'HAND_END' && (
+                <HandResultModal result={lastHandResult} score={score} myTeam={myTeam} />
+            )}
+            {phase === 'MATCH_END' && (
+                <MatchResultModal score={score} myTeam={myTeam} onRematch={onNewGame} onHome={onGoHome} />
+            )}
+        </main>
+    );
+}
+
+// ============================================
+// SEAT
+// ============================================
+
+interface SeatProps {
+    player: PublicPlayer;
+    /** Face-down cards to draw (lags the server count while a deal animates) */
+    cardCount: number;
+    position: SeatPos;
+    isPartner: boolean;
+    isTurn: boolean;
+    isChoosing: boolean;
+    isDealer: boolean;
+    isDeclarer: boolean;
+    isSittingOut: boolean;
+}
+
+function Seat({ player, cardCount, position, isPartner, isTurn, isChoosing, isDealer, isDeclarer, isSittingOut }: SeatProps) {
+    const classes = ['seat', position, isTurn || isChoosing ? 'turn' : '', isSittingOut || !player.isConnected ? 'dim' : ''].filter(Boolean).join(' ');
+    return (
+        <div className={classes} data-deal-seat={player.id} aria-label={`${player.name}${isPartner ? ', your partner' : ', opponent'}${isTurn ? ', playing now' : ''}`}>
+            <div className="seat-id">
+                <AvatarFrame name={player.name} isBot={player.isBot} team={player.team} size="md" isTurn={isTurn || isChoosing} isDim={isSittingOut}>
+                    {isDealer && <span className="av-badge dealer" title="Dealer">D</span>}
+                    {isDeclarer && <span className="av-badge vakkai" title="Vakkai">V</span>}
+                    {!player.isConnected && <span className="av-badge offline">OFFLINE</span>}
+                    {cardCount > 0 && <span className="av-badge count" aria-hidden>{cardCount}</span>}
+                </AvatarFrame>
+                <span className={`nameplate seat-plate team-${player.team.toLowerCase()}`}>
+                    {player.name}
+                </span>
+                {isPartner && <span className="seat-role">Partner</span>}
+                {isSittingOut && <span className="seat-role">Sitting out</span>}
+            </div>
+            <CardFan count={cardCount} className="seat-fan" />
         </div>
+    );
+}
+
+// ============================================
+// HUD PIECES
+// ============================================
+
+function TrickDots({ won, target }: { won: number; target: number | null }) {
+    const total = target ?? Math.max(won, 0);
+    if (!target) return <span className="sb-tricks-num">{won} tricks</span>;
+    return (
+        <>
+            {Array.from({ length: total }).map((_, i) => (
+                <span key={i} className={`sb-dot ${i < won ? 'on' : ''}`} />
+            ))}
+        </>
+    );
+}
+
+function HukumBadge({ suit, vakkai, wins }: { suit: Suit | null; vakkai: boolean; wins: number }) {
+    if (vakkai) {
+        return (
+            <div className="hukum-badge vakkai" aria-label={`Vakkai, ${wins} of 4 tricks in a row`}>
+                <span className="hukum-label">VAKKAI</span>
+                <span className="hukum-value display">{wins}/4</span>
+            </div>
+        );
+    }
+    return (
+        <div className="hukum-badge" aria-label={suit ? `Hukum is ${SUIT_LABEL[suit]}` : 'Hukum not chosen yet'}>
+            <span className="hukum-label">HUKUM</span>
+            <span className="hukum-medal">
+                {suit ? <SuitIcon suit={suit} /> : <span className="hukum-q display">?</span>}
+            </span>
+        </div>
+    );
+}
+
+// ============================================
+// RESULTS
+// ============================================
+
+function ScoreTiles({ score, myTeam }: { score: Record<TeamId, number>; myTeam: TeamId }) {
+    return (
+        <div className="result-scores">
+            {(['A', 'B'] as TeamId[]).map(team => (
+                <div key={team} className={`result-tile team-${team.toLowerCase()} ${team === myTeam ? 'mine' : ''}`}>
+                    <span className="result-team">{TEAM_NAME[team]}{team === myTeam ? ' (you)' : ''}</span>
+                    <span className="result-score display">{formatScore(score[team])}</span>
+                </div>
+            ))}
+        </div>
+    );
+}
+
+function HandResultModal({ result, score, myTeam }: { result: HandResult | null; score: Record<TeamId, number>; myTeam: TeamId }) {
+    const won = result ? result.winnerTeam === myTeam : null;
+    return (
+        <Modal title={won === null ? 'Hand Over' : won ? 'Hand Won!' : 'Hand Lost'} ribbon={won === false ? 'red' : 'green'} className="result">
+            <div className="result-body">
+                {result && (
+                    <>
+                        <div className={`result-points display display-lg ${won ? 'pos' : 'neg'}`}>
+                            Team {TEAM_NAME[result.winnerTeam]} {formatScore(result.points)}
+                        </div>
+                        <p className="result-reason">{result.reason}</p>
+                    </>
+                )}
+                <ScoreTiles score={score} myTeam={myTeam} />
+                <div className="result-next">
+                    <Loader label="Next hand" />
+                    <span>Next hand starting…</span>
+                </div>
+            </div>
+        </Modal>
+    );
+}
+
+function MatchResultModal({ score, myTeam, onRematch, onHome }: { score: Record<TeamId, number>; myTeam: TeamId; onRematch: () => void; onHome: () => void }) {
+    const won = score[myTeam] > 0;
+    const winner: TeamId = score.A > score.B ? 'A' : 'B';
+    return (
+        <Modal title={won ? 'Victory!' : 'Defeat'} ribbon={won ? 'yellow' : 'red'} className="result match">
+            <div className="result-body">
+                <div className={`result-art ${won ? 'win' : 'lose'}`} aria-hidden>
+                    {won ? <TrophyIcon width={120} height={120} /> : <CloudIcon width={110} height={110} />}
+                </div>
+                <p className="result-headline display display-lg">
+                    {won ? 'You won the match!' : 'Better luck next time!'}
+                </p>
+                <p className="result-reason">Team {TEAM_NAME[winner]} reached {formatScore(score[winner])}</p>
+                <ScoreTiles score={score} myTeam={myTeam} />
+                <div className="result-actions">
+                    <button type="button" className="btn btn-yellow btn-block" onClick={onHome}><span>Home</span></button>
+                    <button type="button" className="btn btn-block" onClick={onRematch}><span>Rematch</span></button>
+                </div>
+            </div>
+        </Modal>
     );
 }

@@ -43,6 +43,7 @@ export interface Player {
     isReady: boolean;
     isConnected: boolean;
     wantsSwitch: boolean; // For team switch requests after 4 players join
+    isBot: boolean; // Server-controlled player (no socket)
 }
 
 // Team A = seats 0, 2 (P1, P3)
@@ -146,6 +147,8 @@ export type ClientMessage =
     | { type: 'CREATE_ROOM'; playerName: string; team: TeamId }
     | { type: 'JOIN_ROOM'; roomCode: string; playerName: string; team: TeamId }
     | { type: 'TOGGLE_SWITCH_REQUEST' }
+    | { type: 'ADD_BOT'; team: TeamId }
+    | { type: 'REMOVE_BOT'; botId: PlayerId }
     | { type: 'READY' }
     | { type: 'PASS_VAKKAI' }
     | { type: 'DECLARE_VAKKAI' }
@@ -201,6 +204,7 @@ export interface PublicGameState {
         isReady: boolean;
         isConnected: boolean;
         wantsSwitch: boolean;
+        isBot: boolean;
     }>;
     dealerTeam: TeamId | null;
     trumpTeam: TeamId | null;

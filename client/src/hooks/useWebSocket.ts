@@ -8,17 +8,27 @@ import { playSound, initSounds } from '../audio/soundManager';
 
 const WS_URL = import.meta.env.VITE_WS_URL || 'ws://localhost:3001';
 
-interface ChatMessage {
+export interface ChatMessage {
     playerId: string;
     playerName: string;
     text: string;
     timestamp: Date;
 }
 
+export interface HandResult {
+    winnerTeam: TeamId;
+    points: number;
+    reason: string;
+}
+
 interface UseWebSocketReturn {
     // Connection state
     isConnected: boolean;
+    /** The socket closed after opening (server down / network lost) */
+    connectionLost: boolean;
     error: string | null;
+    /** Increments on every server ERROR, so callers can end pending states */
+    errorSeq: number;
 
     // Room state
     roomCode: string | null;
@@ -29,11 +39,14 @@ interface UseWebSocketReturn {
     gameState: PublicGameState | null;
     myCards: Card[];
     chatMessages: ChatMessage[];
+    lastHandResult: HandResult | null;
 
     // Actions
     createRoom: (playerName: string, team: TeamId) => void;
     joinRoom: (roomCode: string, playerName: string, team: TeamId) => void;
     toggleSwitchRequest: () => void;
+    addBot: (team: TeamId) => void;
+    removeBot: (botId: PlayerId) => void;
     setReady: () => void;
     passVakkai: () => void;
     declareVakkai: () => void;
@@ -50,13 +63,16 @@ let globalWs: WebSocket | null = null;
 
 export function useWebSocket(): UseWebSocketReturn {
     const [isConnected, setIsConnected] = useState(false);
+    const [connectionLost, setConnectionLost] = useState(false);
     const [error, setError] = useState<string | null>(null);
+    const [errorSeq, setErrorSeq] = useState(0);
     const [roomCode, setRoomCode] = useState<string | null>(null);
     const [playerId, setPlayerId] = useState<string | null>(null);
     const [seat, setSeat] = useState<number | null>(null);
     const [gameState, setGameState] = useState<PublicGameState | null>(null);
     const [myCards, setMyCards] = useState<Card[]>([]);
     const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+    const [lastHandResult, setLastHandResult] = useState<HandResult | null>(null);
 
     const messageHandlerRef = useRef<((message: ServerMessage) => void) | null>(null);
 
@@ -98,7 +114,16 @@ export function useWebSocket(): UseWebSocketReturn {
                 playSound('notification');
                 break;
 
+            case 'HAND_END':
+                setLastHandResult({
+                    winnerTeam: message.winnerTeam,
+                    points: message.points,
+                    reason: message.reason,
+                });
+                break;
+
             case 'ERROR':
+                setErrorSeq(n => n + 1);
                 setError(message.message);
                 setTimeout(() => setError(null), 3000);
                 break;
@@ -111,6 +136,7 @@ export function useWebSocket(): UseWebSocketReturn {
                 setGameState(null);
                 setMyCards([]);
                 setChatMessages([]);
+                setLastHandResult(null);
                 break;
 
             default:
@@ -147,6 +173,7 @@ export function useWebSocket(): UseWebSocketReturn {
             ws.onclose = () => {
                 console.log('❌ Disconnected from server');
                 setIsConnected(false);
+                setConnectionLost(true);
                 globalWs = null;
             };
 
@@ -200,6 +227,14 @@ export function useWebSocket(): UseWebSocketReturn {
         send({ type: 'TOGGLE_SWITCH_REQUEST' });
     }, [send]);
 
+    const addBot = useCallback((team: TeamId) => {
+        send({ type: 'ADD_BOT', team });
+    }, [send]);
+
+    const removeBot = useCallback((botId: PlayerId) => {
+        send({ type: 'REMOVE_BOT', botId });
+    }, [send]);
+
     const setReady = useCallback(() => {
         send({ type: 'READY' });
     }, [send]);
@@ -240,16 +275,21 @@ export function useWebSocket(): UseWebSocketReturn {
 
     return {
         isConnected,
+        connectionLost,
         error,
+        errorSeq,
         roomCode,
         playerId,
         seat,
         gameState,
         myCards,
         chatMessages,
+        lastHandResult,
         createRoom,
         joinRoom,
         toggleSwitchRequest,
+        addBot,
+        removeBot,
         setReady,
         passVakkai,
         declareVakkai,
