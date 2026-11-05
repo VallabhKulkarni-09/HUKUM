@@ -73,7 +73,6 @@ export function Lobby({
 
             <section className="lobby-center">
                 <Logo />
-                <p className="lobby-tagline display">Court Piece · Rang</p>
 
                 <div className="mode-cards">
                     <button type="button" className="mode-card mode-new" onClick={() => setDialog('create')} disabled={!isConnected}>

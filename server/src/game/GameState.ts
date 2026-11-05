@@ -15,12 +15,16 @@ import {
     VakkaiState,
     Score,
     PublicGameState,
+    PublicToss,
+    TossState,
+    TOSS_SLOTS,
+    TOSS_PICK_MS,
     getTeamForSeat,
 } from '../types.js';
 import { StateMachine, createStateMachine } from './StateMachine.js';
 import { createTrickState, addCardToTrick, calculateTrickWinner, isTrickComplete, getTrickTurnOrder } from './TrickLogic.js';
 import { createScore, applyScore, checkHandWinner, calculateVakkaiResult, isMatchEnd, getDealerChoosingTeam, getOppositeTeam, SCORING } from './Scoring.js';
-import { createDeck, shuffleDeck, dealCards, drawTossCards, calculateTossPoints } from './Deck.js';
+import { createDeck, shuffleDeck, dealCards, createTossSpread, scoreToss } from './Deck.js';
 import { getCardValue, isVakkaiEligible } from './Card.js';
 
 /**
@@ -32,6 +36,8 @@ export class GameEngine {
     private gameState: GameState;
     private deck: Card[];
     private remainingDeck: Card[];
+    /** Score when the current hand was dealt (to know who climbed back to 0) */
+    private handStartScore: Score = { A: 0, B: 0 };
 
     constructor() {
         this.stateMachine = createStateMachine();
@@ -60,9 +66,10 @@ export class GameEngine {
             currentTrick: createTrickState(),
             trickCounts: { A: 0, B: 0 },
             score: createScore(),
-            tossCards: new Map(),
+            toss: null,
             dealerTeam: null,
             trumpTeam: null,
+            lastNegativeTeam: null,
         };
     }
 
@@ -266,42 +273,104 @@ export class GameEngine {
         return true;
     }
 
-    /**
-     * Perform initial toss to determine dealer/trump teams
-     */
-    performInitialToss(): { dealerTeam: TeamId; trumpTeam: TeamId; cards: Map<PlayerId, Card> } {
+    // ============================================
+    // OPENING TOSS
+    // All four players pick a face-down card from a shuffled spread at the same
+    // time. Card values are added per team; the lower team deals. Equal totals:
+    // everyone draws again from a new spread.
+    // ============================================
+
+    /** READY_CHECK -> INITIAL_TOSS: lay out the first spread */
+    startToss(now: number = Date.now()): void {
         this.stateMachine.transitionTo('INITIAL_TOSS');
         this.gameState.phase = 'INITIAL_TOSS';
+        this.gameState.currentTurnId = null;
+        this.gameState.dealerId = null;
+        this.gameState.trumpChooserId = null;
+        this.gameState.dealerTeam = null;
+        this.gameState.trumpTeam = null;
+        for (const p of this.players.values()) p.hand = [];
+        this.gameState.toss = this.newTossRound(1, now);
+    }
 
-        const tossCards = drawTossCards(4);
-        const players = [...this.players.values()].sort((a, b) => a.seat - b.seat);
+    private newTossRound(round: number, now: number): TossState {
+        return {
+            round,
+            deck: createTossSpread(TOSS_SLOTS),
+            picks: new Map(),
+            deadline: now + TOSS_PICK_MS,
+            totals: null,
+            result: null,
+        };
+    }
 
-        const tossCardMap = new Map<PlayerId, Card>();
-        players.forEach((player, index) => {
-            tossCardMap.set(player.id, tossCards[index]);
-        });
+    /** Record a pick. Returns false if it isn't allowed (wrong phase, slot taken, already picked). */
+    pickTossCard(playerId: PlayerId, slot: number): boolean {
+        const toss = this.gameState.toss;
+        if (this.gameState.phase !== 'INITIAL_TOSS' || !toss || toss.result) return false;
+        if (!this.players.has(playerId) || toss.picks.has(playerId)) return false;
+        if (!Number.isInteger(slot) || slot < 0 || slot >= toss.deck.length) return false;
+        if ([...toss.picks.values()].includes(slot)) return false;
 
-        const { teamA, teamB } = calculateTossPoints(tossCards);
+        toss.picks.set(playerId, slot);
 
-        // Lower team deals, higher team gets trump choice
-        const dealerTeam: TeamId = teamA <= teamB ? 'A' : 'B';
-        const trumpTeam: TeamId = dealerTeam === 'A' ? 'B' : 'A';
+        if (toss.picks.size === this.players.size) {
+            const { totals, result } = scoreToss(
+                [...toss.picks].map(([id, s]) => ({ team: this.players.get(id)!.team, card: toss.deck[s] })),
+            );
+            toss.totals = totals;
+            toss.result = result;
+        }
+        return true;
+    }
 
-        this.gameState.tossCards = tossCardMap;
-        this.gameState.dealerTeam = dealerTeam;
-        this.gameState.trumpTeam = trumpTeam;
+    /** Pick a random free slot for a player (bot, disconnected, or out of time). */
+    autoPickTossCard(playerId: PlayerId): boolean {
+        const toss = this.gameState.toss;
+        if (!toss || toss.result || toss.picks.has(playerId)) return false;
+        const taken = new Set(toss.picks.values());
+        const free = toss.deck.map((_, i) => i).filter(i => !taken.has(i));
+        if (free.length === 0) return false;
+        return this.pickTossCard(playerId, free[Math.floor(Math.random() * free.length)]);
+    }
 
-        // Set default dealer (first player of dealer team)
-        const dealerPlayer = players.find(p => p.team === dealerTeam);
-        this.gameState.dealerId = dealerPlayer!.id;
+    /** Players who still have to pick in the current toss round */
+    getTossPending(): PlayerId[] {
+        const toss = this.gameState.toss;
+        if (!toss || toss.result) return [];
+        return [...this.players.keys()].filter(id => !toss.picks.has(id));
+    }
 
-        // Set trump chooser (player next to dealer)
-        const dealerSeat = dealerPlayer!.seat;
-        const trumpChooserSeat = ((dealerSeat + 1) % 4) as SeatPosition;
-        const trumpChooser = this.getPlayerBySeat(trumpChooserSeat);
+    /** Equal totals: deal a new spread and everyone draws again */
+    redoToss(now: number = Date.now()): boolean {
+        const toss = this.gameState.toss;
+        if (this.gameState.phase !== 'INITIAL_TOSS' || toss?.result !== 'TIE') return false;
+        this.gameState.toss = this.newTossRound(toss.round + 1, now);
+        return true;
+    }
+
+    /** Lower team deals: pick a random dealer from it and deal the first 4 cards */
+    finishToss(): boolean {
+        const toss = this.gameState.toss;
+        if (this.gameState.phase !== 'INITIAL_TOSS' || !toss || (toss.result !== 'A' && toss.result !== 'B')) return false;
+
+        this.gameState.dealerTeam = toss.result;
+        this.gameState.trumpTeam = getOppositeTeam(toss.result);
+        this.gameState.toss = null;
+        this.setRandomDealer(toss.result);
+        this.dealFirstHalf();
+        return true;
+    }
+
+    /** Random dealer from `team`; the Hukum chooser sits in the next seat */
+    private setRandomDealer(team: TeamId): Player | null {
+        const options = [...this.players.values()].filter(p => p.team === team);
+        if (options.length === 0) return null;
+        const dealer = options[Math.floor(Math.random() * options.length)];
+        this.gameState.dealerId = dealer.id;
+        const trumpChooser = this.getPlayerBySeat(((dealer.seat + 1) % 4) as SeatPosition);
         this.gameState.trumpChooserId = trumpChooser!.id;
-
-        return { dealerTeam, trumpTeam, cards: tossCardMap };
+        return dealer;
     }
 
     /**
@@ -310,6 +379,8 @@ export class GameEngine {
     dealFirstHalf(): void {
         this.stateMachine.transitionTo('DEALING_FIRST');
         this.gameState.phase = 'DEALING_FIRST';
+
+        this.handStartScore = { ...this.gameState.score };
 
         // Create and shuffle deck
         this.deck = shuffleDeck(createDeck());
@@ -647,8 +718,13 @@ export class GameEngine {
             this.stateMachine.transitionTo('HAND_END');
             this.gameState.phase = 'HAND_END';
 
-            // Determine who chooses dealer
-            const choosingTeam = getDealerChoosingTeam(this.gameState.score);
+            // Remember who was below zero before this hand (decides the dealer at 0 : 0)
+            const before = this.handStartScore;
+            if (before.A < 0) this.gameState.lastNegativeTeam = 'A';
+            else if (before.B < 0) this.gameState.lastNegativeTeam = 'B';
+
+            // Team that deals next
+            const choosingTeam = getDealerChoosingTeam(this.gameState.score, this.gameState.lastNegativeTeam, this.gameState.dealerTeam ?? 'A');
             this.gameState.dealerTeam = choosingTeam;
             this.gameState.trumpTeam = getOppositeTeam(choosingTeam);
         }
@@ -676,24 +752,13 @@ export class GameEngine {
     autoSelectDealer(): boolean {
         if (this.gameState.phase !== 'HAND_END' && this.gameState.phase !== 'DEALER_SELECTION') return false;
 
-        const choosingTeam = getDealerChoosingTeam(this.gameState.score);
+        // endHand already decided which team deals
+        const choosingTeam = this.gameState.dealerTeam
+            ?? getDealerChoosingTeam(this.gameState.score, this.gameState.lastNegativeTeam);
 
-        // Find first player from the choosing team (by seat order)
-        const players = [...this.players.values()]
-            .filter(p => p.team === choosingTeam)
-            .sort((a, b) => a.seat - b.seat);
-
-        if (players.length === 0) return false;
-
-        const dealer = players[0];
-        this.gameState.dealerId = dealer.id;
-
-        // Set trump chooser
-        const trumpChooserSeat = ((dealer.seat + 1) % 4) as SeatPosition;
-        const trumpChooser = this.getPlayerBySeat(trumpChooserSeat);
-        this.gameState.trumpChooserId = trumpChooser!.id;
-
-        console.log(`[DEALER] Auto-selected: ${dealer.name} (Team ${choosingTeam})`);
+        const dealer = this.setRandomDealer(choosingTeam);
+        if (!dealer) return false;
+        console.log(`[DEALER] Random dealer: ${dealer.name} (Team ${choosingTeam})`);
 
         // Reset for new hand
         this.resetForNewHand();
@@ -711,7 +776,8 @@ export class GameEngine {
         if (!dealer) return false;
 
         // Verify player is on the dealer-choosing team
-        const choosingTeam = getDealerChoosingTeam(this.gameState.score);
+        const choosingTeam = this.gameState.dealerTeam
+            ?? getDealerChoosingTeam(this.gameState.score, this.gameState.lastNegativeTeam);
         if (dealer.team !== choosingTeam) return false;
 
         this.gameState.dealerId = dealerId;
@@ -811,6 +877,29 @@ export class GameEngine {
             })),
             dealerTeam: this.gameState.dealerTeam,
             trumpTeam: this.gameState.trumpTeam,
+            toss: this.getPublicToss(),
+        };
+    }
+
+    /** Toss as seen by clients: which slots are taken; cards only once everyone has picked */
+    private getPublicToss(now: number = Date.now()): PublicToss | null {
+        const toss = this.gameState.toss;
+        if (!toss) return null;
+        const picks: Record<PlayerId, number> = {};
+        for (const [id, slot] of toss.picks) picks[id] = slot;
+        let cards: Record<PlayerId, Card> | null = null;
+        if (toss.result) {
+            cards = {};
+            for (const [id, slot] of toss.picks) cards[id] = toss.deck[slot];
+        }
+        return {
+            round: toss.round,
+            slots: toss.deck.length,
+            picks,
+            cards,
+            totals: toss.totals,
+            result: toss.result,
+            msLeft: toss.result ? 0 : Math.max(0, toss.deadline - now),
         };
     }
 
@@ -900,6 +989,13 @@ export class GameEngine {
         if (this.gameState.trumpChooserId === oldId) this.gameState.trumpChooserId = newId;
         if (this.gameState.currentTurnId === oldId) this.gameState.currentTurnId = newId;
         if (this.gameState.vakkai.declarerId === oldId) this.gameState.vakkai.declarerId = newId;
+
+        // Update toss pick
+        const toss = this.gameState.toss;
+        if (toss?.picks.has(oldId)) {
+            toss.picks.set(newId, toss.picks.get(oldId)!);
+            toss.picks.delete(oldId);
+        }
 
         // Update trick cards
         for (const tc of this.gameState.currentTrick.cards) {

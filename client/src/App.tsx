@@ -57,6 +57,7 @@ function App() {
     declareVakkai,
     chooseHukum,
     playCard,
+    tossPick,
     sendMessage,
     newGame,
     goHome,
@@ -138,6 +139,7 @@ function App() {
           onDeclareVakkai={declareVakkai}
           onChooseHukum={chooseHukum}
           onPlayCard={playCard}
+          onTossPick={tossPick}
           onReady={setReady}
           onToggleSwitchRequest={toggleSwitchRequest}
           onAddBot={addBot}

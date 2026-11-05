@@ -46,15 +46,18 @@ Spade, Heart, Diamond, Club (no inherent hierarchy except trump)
 
 ## 3. Match Start – Initial Dealer Selection
 
-1. Each player draws 1 card from shuffled deck
-2. Sum points per team:
+1. A shuffled spread of 12 face-down cards is laid out
+2. **All four players pick one card at the same time** (10 seconds; anyone who doesn't pick gets a random card)
+3. When everyone has picked, all four cards are revealed together
+4. Sum points per team:
    - Team A total = P1 card + P3 card
    - Team B total = P2 card + P4 card
-3. **Lowest total team** → Deals first (dealer team)
-4. **Highest total team** → Declares Hukum (trump team)
-5. Within the dealer team, either partner can be chosen as dealer
+5. **Lowest total team** → Deals first (dealer team)
+6. **Highest total team** → Declares Hukum (trump team)
+7. **Equal totals** → everyone draws again from a new spread
+8. The dealer is a **random player** from the dealer team
 
-> **Note**: This only happens at match start. Subsequent dealer selection follows Section 10.
+> **Note**: This happens at the start of every match, including rematches. Subsequent dealer selection follows Section 10.
 
 ---
 
@@ -188,12 +191,12 @@ Match ends when: `Score ≥ +16` OR `Score ≤ −16`
 After each hand:
 
 1. Identify the team with **negative score**
-2. That team **chooses which partner** becomes dealer
+2. That team deals; the dealer is a **random player** from that team
 3. The **other team** (positive score) will declare Hukum next hand
 
 ### Edge Case: Score Returns to 0-0
 If a team was negative and returns to 0:
-- The team that **came from negative to 0** chooses dealer
+- The team that **came from negative to 0** deals (random player)
 - (There is no true tie scenario in normal gameplay)
 
 ---
@@ -205,7 +208,7 @@ WAITING_FOR_PLAYERS
     ↓
 READY_CHECK
     ↓
-INITIAL_TOSS (first match only)
+INITIAL_TOSS (start of every match)
     ↓
 ┌─────────────────────────────────────┐
 │  DEALING_FIRST                      │

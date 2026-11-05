@@ -1,0 +1,428 @@
+/* ============================================
+   OPENING TOSS
+   ============================================ */
+
+.toss {
+  /* Portrait phones: 4 columns so the spread stays clear of the side seats */
+  --toss-w: clamp(38px, min(14vw, 9dvh), 60px);
+  --toss-h: calc(var(--toss-w) * 1.4);
+  --toss-cols: 4;
+  /* Reveal cards: four in a row between the side seats */
+  --toss-rw: min(var(--trick-w), 13.5vw);
+  --toss-rh: calc(var(--toss-rw) * 1.4);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-2);
+  max-width: 100%;
+}
+
+.toss-title {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  font-size: var(--fs-xl);
+  color: var(--white);
+  text-shadow: var(--outline-2);
+  line-height: 1;
+  animation: rise-in var(--dur-slow) var(--ease-out) both;
+}
+
+.toss-sub {
+  margin-top: 4px;
+  font-family: var(--font-body);
+  font-size: var(--fs-xs);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--blue-100);
+  text-shadow: 0 1px 0 var(--ink);
+}
+
+/* ---- Spread: two fanned rows of face-down cards ---- */
+
+.toss-spread {
+  display: grid;
+  grid-template-columns: repeat(var(--toss-cols), var(--toss-w));
+  grid-auto-rows: var(--toss-h);
+  gap: 6px 6px;
+  padding: 6px 4px;
+}
+
+.toss-card {
+  --c: var(--c4);
+  --r: var(--r4);
+  /* middle row, for the entrance gather */
+  --rm: 1;
+  position: relative;
+  width: var(--toss-w);
+  height: var(--toss-h);
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: default;
+  transform: rotate(calc(var(--c) * 2.4deg)) translateY(calc(var(--c) * var(--c) * 0.9px));
+  transition: transform 460ms var(--ease-out), opacity 380ms ease 80ms, filter var(--dur-base) ease;
+  /* fill-mode backwards: after the entrance, transitions (pick fly-off) work normally */
+  animation: toss-in 460ms var(--ease-pop) backwards;
+  animation-delay: calc(var(--i) * 38ms);
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Deal out from a single pile in the middle */
+@keyframes toss-in {
+  from {
+    opacity: 0;
+    transform: translate(calc(var(--c) * -100% - var(--c) * 6px), calc((var(--rm) - var(--r)) * 100%)) rotate(calc(var(--i) * 17deg)) scale(0.85);
+  }
+}
+
+.toss-card .pcard-back {
+  width: 100%;
+  height: 100%;
+  padding: 7%;
+  border-width: 2px;
+  border-radius: 9%;
+  box-shadow: 0 2px 0 rgba(15, 36, 64, 0.35), 0 4px 8px rgba(0, 0, 0, 0.3);
+}
+
+.toss-card .pcard-back-inner {
+  border-radius: 7%;
+}
+
+.toss-spread.can-pick .toss-card:not(:disabled) {
+  cursor: pointer;
+}
+
+.toss-spread.can-pick .toss-card:not(:disabled):hover,
+.toss-spread.can-pick .toss-card:not(:disabled):focus-visible {
+  transform: rotate(calc(var(--c) * 2.4deg)) translateY(-10%);
+  outline: none;
+}
+
+.toss-spread.can-pick .toss-card:not(:disabled):focus-visible .pcard-back {
+  box-shadow: 0 0 0 3px var(--yellow-500), 0 4px 8px rgba(0, 0, 0, 0.3);
+}
+
+.toss-spread.can-pick .toss-card:not(:disabled):active {
+  transform: rotate(calc(var(--c) * 2.4deg)) scale(0.94);
+}
+
+/* Not your turn to pick any more (or waiting): quieter cards */
+.toss-spread:not(.can-pick) .toss-card:not(.taken) {
+  filter: brightness(0.82) saturate(0.85);
+}
+
+/* Picked: the card flies toward its owner's seat */
+.toss-card.taken {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.toss-card.to-bottom { transform: translateY(260%) scale(0.6) rotate(8deg); }
+.toss-card.to-top { transform: translateY(-260%) scale(0.5) rotate(-8deg); }
+.toss-card.to-left { transform: translate(-300%, -20%) scale(0.5) rotate(-20deg); }
+.toss-card.to-right { transform: translate(300%, -20%) scale(0.5) rotate(20deg); }
+
+.toss-timer {
+  display: inline-grid;
+  place-items: center;
+  min-width: 1.7em;
+  height: 1.7em;
+  margin-left: 6px;
+  border: 2px solid var(--ink);
+  border-radius: 50%;
+  background: var(--white);
+  font-size: 0.85em;
+  color: var(--ink);
+}
+
+/* ---- Reveal ---- */
+
+/* Two teams side by side: each pair of cards sits above its total */
+.toss-teams {
+  display: flex;
+  align-items: flex-end;
+  gap: clamp(12px, 3.5vw, 28px);
+}
+
+.toss-team {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--sp-2);
+}
+
+.toss-pair {
+  display: flex;
+  gap: 6px;
+}
+
+.toss-drawn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  /* Each card comes back from its owner's seat, then all four flip together */
+  animation: toss-back 440ms var(--ease-out) both;
+  animation-delay: calc(var(--n) * 50ms);
+}
+
+.toss-drawn.from-bottom { --from: 0, 140%; }
+.toss-drawn.from-top { --from: 0, -140%; }
+.toss-drawn.from-left { --from: -160%, 0; }
+.toss-drawn.from-right { --from: 160%, 0; }
+
+@keyframes toss-back {
+  from { opacity: 0; transform: translate(var(--from)) scale(0.6); }
+}
+
+.toss-flip {
+  width: var(--toss-rw);
+  height: var(--toss-rh);
+  perspective: 700px;
+}
+
+.toss-flip .pcard {
+  width: 100%;
+  height: 100%;
+}
+
+.toss-who {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  max-width: calc(var(--toss-rw) + 6px);
+  line-height: 1.1;
+}
+
+.toss-who-name {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--white);
+  text-shadow: 0 1px 0 var(--ink);
+}
+
+/* Points appear once the cards have flipped */
+.toss-who-pts {
+  font-family: var(--font-display);
+  font-size: var(--fs-md);
+  color: var(--yellow-500);
+  text-shadow: var(--outline-1);
+  animation: rise-in var(--dur-base) var(--ease-pop) 1150ms backwards;
+}
+
+.toss-flip-inner {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  transform-style: preserve-3d;
+  /* Cards slide in from the seats first (trick-slot animation), then all flip together */
+  animation: toss-flip 520ms var(--ease-out) 700ms both;
+}
+
+@keyframes toss-flip {
+  from { transform: rotateY(0deg); }
+  to { transform: rotateY(180deg); }
+}
+
+.toss-face {
+  position: absolute;
+  inset: 0;
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+
+.toss-face.front {
+  transform: rotateY(180deg);
+}
+
+.toss-face.back .pcard-back {
+  width: 100%;
+  height: 100%;
+  padding: 7%;
+  border-width: 2.5px;
+  border-radius: 9%;
+  box-shadow: var(--sh-card);
+}
+
+.toss-face.back .pcard-back-inner {
+  border-radius: 7%;
+}
+
+.toss-total {
+  animation: rise-in var(--dur-slow) var(--ease-pop) 1250ms backwards;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: var(--sp-2);
+  padding: 4px 6px 4px 12px;
+  border: var(--bw) solid var(--ink);
+  border-radius: var(--r-pill);
+  box-shadow: 0 3px 0 var(--ink);
+  color: var(--white);
+  transition: transform var(--dur-base) var(--ease-pop);
+}
+
+.toss-total.team-a { background: linear-gradient(180deg, #5aa6f5, var(--team-a-dark)); }
+.toss-total.team-b { background: linear-gradient(180deg, #f6766f, var(--team-b-dark)); }
+
+.toss-total-name {
+  font-family: var(--font-display);
+  font-size: var(--fs-sm);
+  text-shadow: var(--outline-1);
+}
+
+.toss-total-num {
+  display: grid;
+  place-items: center;
+  min-width: 34px;
+  height: 34px;
+  padding: 0 5px;
+  border: 2px solid var(--ink);
+  border-radius: var(--r-pill);
+  background: var(--white);
+  font-family: var(--font-display);
+  font-size: var(--fs-lg);
+  line-height: 1;
+  color: var(--ink);
+}
+
+/* The team that deals (lower total) */
+.toss-total.deals {
+  box-shadow: 0 3px 0 var(--ink), 0 0 0 3px var(--yellow-500), 0 0 16px rgba(255, 203, 34, 0.7);
+  animation:
+    rise-in var(--dur-slow) var(--ease-pop) 1250ms backwards,
+    toss-deals 520ms var(--ease-pop) 1550ms backwards;
+}
+
+@keyframes toss-deals {
+  from { transform: scale(1); }
+  50% { transform: scale(1.14); }
+}
+
+.toss-result {
+  animation: rise-in var(--dur-slow) var(--ease-pop) 1500ms backwards;
+}
+
+.toss-hint {
+  margin: 0;
+  font-size: 11px;
+  color: var(--text-soft);
+  text-shadow: 0 1px 0 var(--ink);
+  animation: rise-in var(--dur-slow) var(--ease-out) 1700ms backwards;
+}
+
+/* ---- "Picked" marker on the avatar ---- */
+
+.av-badge.toss-chip {
+  left: -8px;
+  bottom: -10px;
+  padding: 0;
+  border: 0;
+  background: none;
+  box-shadow: none;
+  --mini-back-w: 20px;
+  animation: toss-chip-in 420ms var(--ease-pop) 260ms backwards;
+}
+
+@keyframes toss-chip-in {
+  from { opacity: 0; transform: scale(0.2) rotate(-40deg); }
+}
+
+/* ---- Narrow phones: totals pill no wider than its pair of cards ---- */
+
+@media (max-width: 440px) {
+  .toss-total {
+    gap: 6px;
+    padding: 3px 4px 3px 9px;
+  }
+
+  .toss-total-you {
+    display: none;
+  }
+
+  .toss-total-num {
+    min-width: 30px;
+    height: 30px;
+    font-size: var(--fs-md);
+  }
+}
+
+@media (max-width: 360px) {
+  .toss-total-name {
+    font-size: var(--fs-xs);
+  }
+}
+
+/* ---- Short portrait phones: keep the title clear of the top seat ---- */
+
+@media (orientation: portrait) and (max-height: 640px) {
+  .toss {
+    --toss-w: clamp(36px, min(14vw, 7.6dvh), 60px);
+    gap: 4px;
+  }
+
+  /* The status pill below says what to do ("Pick a card!" / "Pick again!") */
+  .toss-title,
+  .toss-hint {
+    display: none;
+  }
+}
+
+/* ---- Wider screens: two rows of six ---- */
+
+@media (min-width: 700px), (orientation: landscape) {
+  .toss {
+    --toss-w: clamp(38px, min(9vw, 9dvh), 62px);
+    --toss-cols: 6;
+  }
+
+  .toss-card {
+    --c: var(--c6);
+    --r: var(--r6);
+    --rm: 0.5;
+  }
+
+  .toss-who-name {
+    font-size: var(--fs-xs);
+  }
+}
+
+/* ---- Short landscape phones ---- */
+
+@media (orientation: landscape) and (max-height: 540px) {
+  .toss {
+    --toss-w: clamp(32px, 7.4dvh + 6px, 46px);
+    gap: 4px;
+  }
+
+  .toss-title {
+    font-size: var(--fs-lg);
+  }
+
+  .toss-sub,
+  .toss-hint {
+    display: none;
+  }
+
+  .toss-spread {
+    grid-template-columns: repeat(12, var(--toss-w));
+    gap: 0 3px;
+  }
+
+  /* One row: fan across all twelve */
+  .toss-card {
+    --c: var(--c12);
+    --r: 0.5;
+    transform: rotate(calc(var(--c12) * 1.6deg)) translateY(calc(var(--c12) * var(--c12) * 0.5px));
+  }
+
+  .toss-spread.can-pick .toss-card:not(:disabled):hover,
+  .toss-spread.can-pick .toss-card:not(:disabled):focus-visible {
+    transform: rotate(calc(var(--c12) * 1.6deg)) translateY(-10%);
+  }
+}

@@ -133,12 +133,47 @@ export interface GameState {
     // Match score
     score: Score;
 
-    // Initial toss data
-    tossCards: Map<PlayerId, Card>;
+    // Opening toss (null outside INITIAL_TOSS)
+    toss: TossState | null;
 
     // Dealer team (for scoring purposes)
     dealerTeam: TeamId | null;
     trumpTeam: TeamId | null;
+
+    /** Team that was below zero before the last hand (decides the dealer at 0 : 0) */
+    lastNegativeTeam: TeamId | null;
+}
+
+// --- Opening toss ---
+
+/** Face-down cards spread on the table during the toss */
+export const TOSS_SLOTS = 12;
+/** Time to pick before the server picks for you */
+export const TOSS_PICK_MS = 10_000;
+
+export interface TossState {
+    round: number;
+    /** Cards under each spread slot (server only until revealed) */
+    deck: Card[];
+    /** Slot picked by each player */
+    picks: Map<PlayerId, number>;
+    /** Epoch ms when unpicked players get a random card */
+    deadline: number;
+    totals: Record<TeamId, number> | null;
+    /** Team that deals, or TIE (everyone draws again); null until all 4 have picked */
+    result: TeamId | 'TIE' | null;
+}
+
+export interface PublicToss {
+    round: number;
+    slots: number;
+    picks: Record<PlayerId, number>;
+    /** Revealed only once all four have picked */
+    cards: Record<PlayerId, Card> | null;
+    totals: Record<TeamId, number> | null;
+    result: TeamId | 'TIE' | null;
+    /** Time left to pick, measured when this state was sent */
+    msLeft: number;
 }
 
 // --- Client -> Server Messages ---
@@ -155,6 +190,7 @@ export type ClientMessage =
     | { type: 'CHOOSE_HUKUM'; suit: Suit }
     | { type: 'PLAY_CARD'; cardId: string }
     | { type: 'SELECT_DEALER'; dealerId: PlayerId }
+    | { type: 'TOSS_PICK'; slot: number }
     | { type: 'SEND_MESSAGE'; text: string }
     | { type: 'NEW_GAME' }
     | { type: 'GO_HOME' };
@@ -181,7 +217,6 @@ export type ServerMessage =
     | { type: 'DEALER_SELECTION_REQUIRED'; team: TeamId; options: PlayerId[] }
     | { type: 'CHAT_MESSAGE'; playerId: PlayerId; playerName: string; text: string }
     | { type: 'ERROR'; message: string }
-    | { type: 'TOSS_RESULT'; cards: Record<PlayerId, Card>; dealerTeam: TeamId; trumpTeam: TeamId }
     | { type: 'GO_HOME' };
 
 // Public game state (no private card info)
@@ -208,4 +243,5 @@ export interface PublicGameState {
     }>;
     dealerTeam: TeamId | null;
     trumpTeam: TeamId | null;
+    toss: PublicToss | null;
 }

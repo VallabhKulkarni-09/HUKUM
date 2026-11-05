@@ -53,6 +53,7 @@ interface UseWebSocketReturn {
     chooseHukum: (suit: Suit) => void;
     playCard: (cardId: string) => void;
     selectDealer: (dealerId: PlayerId) => void;
+    tossPick: (slot: number) => void;
     sendMessage: (text: string) => void;
     newGame: () => void;
     goHome: () => void;
@@ -257,6 +258,10 @@ export function useWebSocket(): UseWebSocketReturn {
         send({ type: 'SELECT_DEALER', dealerId });
     }, [send]);
 
+    const tossPick = useCallback((slot: number) => {
+        send({ type: 'TOSS_PICK', slot });
+    }, [send]);
+
     const sendMessage = useCallback((text: string) => {
         send({ type: 'SEND_MESSAGE', text });
     }, [send]);
@@ -292,6 +297,7 @@ export function useWebSocket(): UseWebSocketReturn {
         chooseHukum,
         playCard,
         selectDealer,
+        tossPick,
         sendMessage,
         newGame,
         goHome,

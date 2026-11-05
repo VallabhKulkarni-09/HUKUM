@@ -117,19 +117,15 @@ export function calculateVakkaiResult(
 }
 
 /**
- * Get the team that should choose the next dealer
- * (The team with negative score chooses)
+ * Team that deals the next hand:
+ * - a team below zero deals;
+ * - at 0 : 0, the team that just climbed back up from negative deals.
+ * `lastNegativeTeam` is the team that was below zero before the hand that just ended.
  */
-export function getDealerChoosingTeam(score: Score): TeamId {
-    // If both at 0, this shouldn't happen in normal play
-    // But if it does (after first hand), default behavior:
-    // The team that was negative before (came to 0) chooses
+export function getDealerChoosingTeam(score: Score, lastNegativeTeam: TeamId | null, fallback: TeamId = 'A'): TeamId {
     if (score.A < 0) return 'A';
     if (score.B < 0) return 'B';
-
-    // If both >= 0 (starting position or someone came back to 0)
-    // This edge case: default to A
-    return 'A';
+    return lastNegativeTeam ?? fallback;
 }
 
 /**

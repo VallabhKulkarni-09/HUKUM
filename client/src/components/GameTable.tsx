@@ -9,7 +9,8 @@ import type { PublicGameState, PublicPlayer, Card, PlayerId, Suit, TeamId, Trick
 import type { HandResult } from '../hooks/useWebSocket';
 import { formatScore, getTrickWinnerId } from '../gameUtils';
 import { TableScene, Loader } from './scene/Scene';
-import { PlayingCard, CardFan } from './cards/PlayingCard';
+import { PlayingCard, CardFan, CardBack } from './cards/PlayingCard';
+import { TossStage } from './toss/TossStage';
 import { SuitIcon } from './cards/SuitIcon';
 import { SUIT_LABEL } from './cards/suitLabels';
 import { PlayerHand } from './PlayerHand';
@@ -34,6 +35,7 @@ interface GameTableProps {
     onDeclareVakkai: () => void;
     onChooseHukum: (suit: Suit) => void;
     onPlayCard: (cardId: string) => void;
+    onTossPick: (slot: number) => void;
     onReady: () => void;
     onToggleSwitchRequest: () => void;
     onAddBot: (team: TeamId) => void;
@@ -97,6 +99,7 @@ function Table({
     onDeclareVakkai,
     onChooseHukum,
     onPlayCard,
+    onTossPick,
     onNewGame,
     onGoHome,
     onOpenChat,
@@ -144,6 +147,7 @@ function Table({
         if (dealing) return { text: shuffling ? 'Shuffling…' : 'Dealing…', tone: 'info' as const };
         switch (phase) {
             case 'INITIAL_TOSS':
+                return null; // the toss shows its own prompt
             case 'DEALING_FIRST':
             case 'DEALING_SECOND':
             case 'DEALER_SELECTION':
@@ -197,6 +201,9 @@ function Table({
     });
 
     const opponents = gameState.players.filter(p => p.id !== playerId);
+    const toss = phase === 'INITIAL_TOSS' ? gameState.toss : null;
+    // Picked-card marker on avatars while the toss is still face down
+    const tossPicked = (id: PlayerId) => !!toss && !toss.cards && toss.picks[id] !== undefined;
 
     return (
         <main className="tbl">
@@ -238,12 +245,23 @@ function Table({
                     isDealer={p.id === gameState.dealerId}
                     isDeclarer={vakkai.active && p.id === vakkai.declarerId}
                     isSittingOut={p.id === sittingOutId}
+                    tossPicked={tossPicked(p.id)}
                 />
             ))}
 
             {/* ---- Centre: trick or decision ---- */}
             <section className="tbl-center" aria-label="Table">
-                {showDecision ? (
+                {toss ? (
+                    <TossStage
+                        key={toss.round}
+                        toss={toss}
+                        players={gameState.players}
+                        playerId={playerId}
+                        myTeam={myTeam}
+                        posOf={posOf}
+                        onPick={onTossPick}
+                    />
+                ) : showDecision ? (
                     <ActionButtons
                         phase={phase}
                         isMyTurn={isMyTurn}
@@ -286,6 +304,7 @@ function Table({
                     >
                         {me.id === gameState.dealerId && <span className="av-badge dealer" title="Dealer">D</span>}
                         {vakkai.active && me.id === vakkai.declarerId && <span className="av-badge vakkai" title="Vakkai">V</span>}
+                        {tossPicked(me.id) && <span className="av-badge toss-chip" title="Card picked"><CardBack /></span>}
                     </AvatarFrame>
                     <span className="nameplate me-plate">You</span>
                 </div>
@@ -338,9 +357,10 @@ interface SeatProps {
     isDealer: boolean;
     isDeclarer: boolean;
     isSittingOut: boolean;
+    tossPicked: boolean;
 }
 
-function Seat({ player, cardCount, position, isPartner, isTurn, isChoosing, isDealer, isDeclarer, isSittingOut }: SeatProps) {
+function Seat({ player, cardCount, position, isPartner, isTurn, isChoosing, isDealer, isDeclarer, isSittingOut, tossPicked }: SeatProps) {
     const classes = ['seat', position, isTurn || isChoosing ? 'turn' : '', isSittingOut || !player.isConnected ? 'dim' : ''].filter(Boolean).join(' ');
     return (
         <div className={classes} data-deal-seat={player.id} aria-label={`${player.name}${isPartner ? ', your partner' : ', opponent'}${isTurn ? ', playing now' : ''}`}>
@@ -350,6 +370,7 @@ function Seat({ player, cardCount, position, isPartner, isTurn, isChoosing, isDe
                     {isDeclarer && <span className="av-badge vakkai" title="Vakkai">V</span>}
                     {!player.isConnected && <span className="av-badge offline">OFFLINE</span>}
                     {cardCount > 0 && <span className="av-badge count" aria-hidden>{cardCount}</span>}
+                    {tossPicked && <span className="av-badge toss-chip" title="Card picked"><CardBack /></span>}
                 </AvatarFrame>
                 <span className={`nameplate seat-plate team-${player.team.toLowerCase()}`}>
                     {player.name}

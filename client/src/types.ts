@@ -63,6 +63,19 @@ export interface PublicPlayer {
     isBot: boolean;
 }
 
+/** Opening toss: everyone picks a face-down card; cards are revealed once all four have picked */
+export interface PublicToss {
+    round: number;
+    slots: number;
+    /** Spread slot picked by each player */
+    picks: Record<PlayerId, number>;
+    cards: Record<PlayerId, Card> | null;
+    totals: Record<TeamId, number> | null;
+    /** Team that deals, TIE (draw again), or null while picking */
+    result: TeamId | 'TIE' | null;
+    msLeft: number;
+}
+
 export interface PublicGameState {
     phase: GamePhase;
     dealerId: PlayerId | null;
@@ -76,6 +89,7 @@ export interface PublicGameState {
     players: PublicPlayer[];
     dealerTeam: TeamId | null;
     trumpTeam: TeamId | null;
+    toss: PublicToss | null;
 }
 
 // Server messages
@@ -99,7 +113,6 @@ export type ServerMessage =
     | { type: 'DEALER_SELECTION_REQUIRED'; team: TeamId; options: PlayerId[] }
     | { type: 'CHAT_MESSAGE'; playerId: PlayerId; playerName: string; text: string }
     | { type: 'ERROR'; message: string }
-    | { type: 'TOSS_RESULT'; cards: Record<PlayerId, Card>; dealerTeam: TeamId; trumpTeam: TeamId }
     | { type: 'GO_HOME' };
 
 export const SUITS: Suit[] = ['SPADE', 'HEART', 'DIAMOND', 'CLUB'];

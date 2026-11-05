@@ -93,13 +93,6 @@
   animation: logo-drop 0.7s var(--ease-pop) both;
 }
 
-.lobby-tagline {
-  font-size: var(--fs-lg);
-  color: var(--blue-100);
-  margin-top: -6px;
-  animation: rise-in var(--dur-slow) var(--ease-out) 0.1s both;
-}
-
 .mode-cards {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -398,10 +391,6 @@
 
   .lobby .logo-lg {
     font-size: 52px;
-  }
-
-  .lobby-tagline {
-    font-size: var(--fs-md);
   }
 
   .mode-cards {

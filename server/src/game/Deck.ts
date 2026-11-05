@@ -2,7 +2,7 @@
 // HUKUM GAME - DECK CLASS
 // ============================================
 
-import { Card, Suit, Rank, SUITS, RANKS } from '../types.js';
+import { Card, Rank, TeamId, SUITS, RANKS } from '../types.js';
 import { createCard } from './Card.js';
 
 /**
@@ -76,39 +76,25 @@ export function dealCards(
     };
 }
 
+/** Toss value of a card: A=8, K=7, Q=6, J=5, 10=4, 9=3, 8=2, 7=1 (suits don't count) */
+export const TOSS_POINTS: Record<Rank, number> = {
+    'A': 8, 'K': 7, 'Q': 6, 'J': 5,
+    '10': 4, '9': 3, '8': 2, '7': 1,
+};
+
 /**
- * Draw one card for each player (for initial toss)
+ * Lay out a freshly shuffled toss spread of `slots` face-down cards.
  */
-export function drawTossCards(numPlayers: number): Card[] {
-    const deck = createDeck();
-    const shuffled = shuffleDeck(deck);
-    return shuffled.slice(0, numPlayers);
+export function createTossSpread(slots: number): Card[] {
+    return shuffleDeck(createDeck()).slice(0, slots);
 }
 
 /**
- * Calculate team points from toss cards
- * Team A = players 0, 2 (P1, P3)
- * Team B = players 1, 3 (P2, P4)
+ * Add up each team's toss cards. The lower total deals; equal totals mean draw again.
  */
-export function calculateTossPoints(
-    tossCards: Card[]
-): { teamA: number; teamB: number } {
-    const cardPoints: Record<Rank, number> = {
-        'A': 8, 'K': 7, 'Q': 6, 'J': 5,
-        '10': 4, '9': 3, '8': 2, '7': 1,
-    };
-
-    let teamA = 0;
-    let teamB = 0;
-
-    tossCards.forEach((card, index) => {
-        const points = cardPoints[card.rank];
-        if (index % 2 === 0) {
-            teamA += points; // P1, P3
-        } else {
-            teamB += points; // P2, P4
-        }
-    });
-
-    return { teamA, teamB };
+export function scoreToss(picks: { team: TeamId; card: Card }[]): { totals: Record<TeamId, number>; result: TeamId | 'TIE' } {
+    const totals: Record<TeamId, number> = { A: 0, B: 0 };
+    for (const p of picks) totals[p.team] += TOSS_POINTS[p.card.rank];
+    const result = totals.A === totals.B ? 'TIE' : totals.A < totals.B ? 'A' : 'B';
+    return { totals, result };
 }

@@ -24,6 +24,18 @@ const BOT_DECISION_DELAY_MS = 800;
 const BOT_PLAY_DELAY_MS = 1000;
 const DISCONNECTED_PLAY_DELAY_MS = 2000;
 
+// Opening toss pacing
+const TOSS_BOT_PICK_MIN_MS = 900;
+const TOSS_BOT_PICK_MAX_MS = 2600;
+const TOSS_DISCONNECTED_PICK_MS = 1200;
+/** Cards face up + team totals + "Team X deals!" before the deal starts */
+const TOSS_RESULT_MS = 3600;
+/** Cards face up + "Tie!" before the new spread */
+const TOSS_TIE_MS = 3000;
+
+// Pending toss timers per room (bot picks, deadline, reveal pause)
+const tossTimers = new Map<string, NodeJS.Timeout[]>();
+
 /**
  * Handle incoming WebSocket messages
  */
@@ -76,6 +88,10 @@ export function handleMessage(socket: WebSocket, data: string): void {
 
             case 'SELECT_DEALER':
                 handleSelectDealer(socket, message.dealerId, roomManager);
+                break;
+
+            case 'TOSS_PICK':
+                handleTossPick(socket, message.slot, roomManager);
                 break;
 
             case 'SEND_MESSAGE':
@@ -143,6 +159,8 @@ export function handleDisconnect(socket: WebSocket): void {
 
         // If it's this disconnected player's turn, auto-play after a delay
         scheduleAutoTurn(roomCode, roomManager);
+        // During the toss the server picks for them
+        if (phase === 'INITIAL_TOSS') scheduleToss(roomCode, roomManager);
     }
 }
 
@@ -502,40 +520,113 @@ function handleReady(socket: WebSocket, roomManager: RoomManager): void {
 }
 
 /**
- * Start the match (toss + first deal) once 4 players are seated and ready.
+ * Start the match with the opening toss once 4 players are seated and ready.
  */
 function startGameIfAllReady(roomCode: string, room: RoomEntry, roomManager: RoomManager): void {
     if (!room.engine.allPlayersReady()) return;
 
-    console.log('[GAME] All players ready - starting game');
+    console.log('[GAME] All players ready - starting toss');
+    room.engine.startToss();
+    broadcastGameState(roomCode, roomManager);
+    scheduleToss(roomCode, roomManager);
+}
 
-    // Start game with initial toss
-    const tossResult = room.engine.performInitialToss();
+// ============================================
+// OPENING TOSS
+// ============================================
 
-    // Send toss result
-    const tossCards: Record<PlayerId, any> = {};
-    for (const [pid, card] of tossResult.cards) {
-        tossCards[pid] = card;
+function clearTossTimers(roomCode: string): void {
+    for (const t of tossTimers.get(roomCode) ?? []) clearTimeout(t);
+    tossTimers.delete(roomCode);
+}
+
+function addTossTimer(roomCode: string, ms: number, fn: () => void): void {
+    const list = tossTimers.get(roomCode) ?? [];
+    list.push(setTimeout(fn, ms));
+    tossTimers.set(roomCode, list);
+}
+
+/**
+ * (Re)schedule automated picks for the current toss round:
+ * bots after a short random delay, disconnected humans quickly, everyone else at the deadline.
+ * Every timer re-checks the round, so stale timers do nothing.
+ */
+function scheduleToss(roomCode: string, roomManager: RoomManager): void {
+    clearTossTimers(roomCode);
+    const room = roomManager.getRoom(roomCode);
+    const toss = room?.engine.getGameState().toss;
+    if (!room || !toss || toss.result) return;
+    const round = toss.round;
+
+    const pickFor = (id: PlayerId) => {
+        const r = roomManager.getRoom(roomCode);
+        if (r?.engine.getGameState().toss?.round !== round) return;
+        if (r.engine.autoPickTossCard(id)) afterTossPick(roomCode, roomManager);
+    };
+
+    for (const id of room.engine.getTossPending()) {
+        const p = room.engine.getPlayer(id);
+        if (!p) continue;
+        if (p.isBot) {
+            addTossTimer(roomCode, TOSS_BOT_PICK_MIN_MS + Math.random() * (TOSS_BOT_PICK_MAX_MS - TOSS_BOT_PICK_MIN_MS), () => pickFor(id));
+        } else if (!p.isConnected) {
+            addTossTimer(roomCode, TOSS_DISCONNECTED_PICK_MS, () => pickFor(id));
+        }
     }
 
-    roomManager.broadcast(roomCode, {
-        type: 'TOSS_RESULT',
-        cards: tossCards,
-        dealerTeam: tossResult.dealerTeam,
-        trumpTeam: tossResult.trumpTeam,
+    // Out of time: random card for anyone who hasn't picked
+    addTossTimer(roomCode, Math.max(0, toss.deadline - Date.now()), () => {
+        const r = roomManager.getRoom(roomCode);
+        if (r?.engine.getGameState().toss?.round !== round) return;
+        let changed = false;
+        for (const id of r.engine.getTossPending()) changed = r.engine.autoPickTossCard(id) || changed;
+        if (changed) afterTossPick(roomCode, roomManager);
     });
+}
 
-    // Deal first 4 cards
-    room.engine.dealFirstHalf();
-
-    // Send game state to all
+/** After any pick: broadcast; once all four have picked, reveal, then deal or redraw. */
+function afterTossPick(roomCode: string, roomManager: RoomManager): void {
+    const room = roomManager.getRoom(roomCode);
+    if (!room) return;
     broadcastGameState(roomCode, roomManager);
 
-    // Send private cards to each player
-    sendPrivateCards(roomCode, roomManager);
+    const toss = room.engine.getGameState().toss;
+    if (!toss?.result) return;
 
-    // First Vakkai decision may belong to a bot
-    scheduleAutoTurn(roomCode, roomManager);
+    clearTossTimers(roomCode);
+    const round = toss.round;
+    console.log(`[TOSS] Round ${round}: A=${toss.totals!.A} B=${toss.totals!.B} -> ${toss.result === 'TIE' ? 'tie, draw again' : `Team ${toss.result} deals`}`);
+
+    addTossTimer(roomCode, toss.result === 'TIE' ? TOSS_TIE_MS : TOSS_RESULT_MS, () => {
+        const r = roomManager.getRoom(roomCode);
+        const t = r?.engine.getGameState().toss;
+        if (!r || t?.round !== round) return;
+        tossTimers.delete(roomCode);
+
+        if (t.result === 'TIE') {
+            r.engine.redoToss();
+            broadcastGameState(roomCode, roomManager);
+            scheduleToss(roomCode, roomManager);
+            return;
+        }
+
+        r.engine.finishToss();
+        broadcastGameState(roomCode, roomManager);
+        sendPrivateCards(roomCode, roomManager);
+        // First Vakkai decision may belong to a bot
+        scheduleAutoTurn(roomCode, roomManager);
+    });
+}
+
+function handleTossPick(socket: WebSocket, slot: number, roomManager: RoomManager): void {
+    const { playerId, roomCode, room } = getPlayerContext(socket, roomManager);
+    if (!room) return;
+    if (!room.engine.pickTossCard(playerId, slot)) {
+        // Slot taken a moment ago, or already picked: resend state so the client catches up
+        broadcastGameState(roomCode, roomManager);
+        return;
+    }
+    afterTossPick(roomCode, roomManager);
 }
 
 function handleAddBot(socket: WebSocket, team: TeamId, roomManager: RoomManager): void {
@@ -763,6 +854,7 @@ function handleNewGame(socket: WebSocket, roomManager: RoomManager): void {
     }
 
     console.log(`[GAME] New game requested in room ${roomCode}`);
+    clearTossTimers(roomCode);
     room.engine.resetMatch();
     broadcastGameState(roomCode, roomManager);
 }
