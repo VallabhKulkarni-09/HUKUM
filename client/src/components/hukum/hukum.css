@@ -1,0 +1,133 @@
+/* ============================================
+   HUKUM REVEAL: suit card flies into the medal
+   ============================================ */
+
+.hukum-fly-layer {
+  position: fixed;
+  inset: 0;
+  z-index: var(--z-overlay);
+  pointer-events: none;
+  overflow: hidden;
+}
+
+/* A playing-card-sized tile; GSAP positions it, then morphs it into the medal */
+.hukum-fly {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: var(--trick-w);
+  height: var(--trick-h);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  border: var(--bw) solid var(--ink);
+  border-radius: 12%;
+  background: radial-gradient(circle at 35% 30%, #fff 0%, var(--paper) 55%, #e8dfc6 100%);
+  box-shadow: 0 0 0 3px var(--yellow-500), 0 0 28px 6px rgba(255, 203, 34, 0.75), 0 6px 0 3px var(--ink);
+  will-change: transform, width, height;
+}
+
+.hukum-fly-suit {
+  position: relative;
+  z-index: 1;
+  width: 58%;
+  height: auto;
+  max-height: 58%;
+}
+
+.hukum-fly-label {
+  position: relative;
+  z-index: 1;
+  font-size: clamp(11px, calc(var(--trick-w) * 0.17), 16px);
+  white-space: nowrap;
+}
+
+/* Rays behind the card while it sits in the centre */
+.hukum-fly-burst {
+  position: absolute;
+  /* Centred with margins (GSAP owns `transform` for the scale-in);
+     percentage margins are relative to the card's width, like the burst's size */
+  left: 50%;
+  top: 50%;
+  width: 260%;
+  aspect-ratio: 1;
+  margin-left: -130%;
+  margin-top: -130%;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle, rgba(255, 230, 120, 0.85) 0%, rgba(255, 203, 34, 0.35) 32%, rgba(255, 203, 34, 0) 62%),
+    repeating-conic-gradient(from 0deg, rgba(255, 240, 170, 0.45) 0deg 10deg, rgba(255, 240, 170, 0) 10deg 30deg);
+  mask: radial-gradient(circle, #000 30%, transparent 70%);
+  -webkit-mask: radial-gradient(circle, #000 30%, transparent 70%);
+  z-index: 0;
+  animation: hukum-rays 2.4s linear infinite;
+}
+
+@keyframes hukum-rays {
+  to { rotate: 1turn; }
+}
+
+/* ---- Medal after the suit lands ---- */
+
+/* Soft glow for the whole hand */
+.hukum-badge.lit .hukum-medal {
+  animation: hukum-glow 2.4s ease-in-out infinite;
+}
+
+/* One-shot pop + ring when the card arrives */
+.hukum-badge.landed .hukum-medal {
+  animation:
+    hukum-pop 520ms var(--ease-pop),
+    hukum-glow 2.4s ease-in-out 520ms infinite;
+}
+
+.hukum-badge.landed .hukum-medal::after {
+  content: "";
+  position: absolute;
+  inset: -4px;
+  border: 3px solid var(--yellow-500);
+  border-radius: 50%;
+  pointer-events: none;
+  animation: hukum-ring 700ms var(--ease-out) forwards;
+}
+
+.hukum-badge .hukum-medal {
+  position: relative;
+}
+
+@keyframes hukum-glow {
+  0%, 100% { box-shadow: 0 0 0 3px var(--yellow-500), 0 4px 0 3px var(--ink), 0 0 8px 2px rgba(255, 203, 34, 0.45); }
+  50% { box-shadow: 0 0 0 3px var(--yellow-500), 0 4px 0 3px var(--ink), 0 0 20px 7px rgba(255, 203, 34, 0.8); }
+}
+
+@keyframes hukum-pop {
+  0% { transform: scale(1); }
+  40% { transform: scale(1.3); }
+  100% { transform: scale(1); }
+}
+
+@keyframes hukum-ring {
+  from { transform: scale(0.9); opacity: 1; }
+  to { transform: scale(1.9); opacity: 0; }
+}
+
+/* ---- "H" badge on the player who chose Hukum ---- */
+
+.av-badge.hukum {
+  top: -10px;
+  left: -10px;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: linear-gradient(180deg, var(--green-300), var(--green-600));
+  color: var(--white);
+  font-size: 14px;
+  text-shadow: var(--outline-1);
+  animation: hukum-badge-in 420ms var(--ease-pop) backwards;
+}
+
+@keyframes hukum-badge-in {
+  from { opacity: 0; transform: scale(0.2); }
+}

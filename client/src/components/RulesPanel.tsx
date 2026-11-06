@@ -35,7 +35,7 @@ export function RulesPanel({ onClose }: RulesPanelProps) {
                         <li>At the start of a match, <strong>all four players pick a face-down card</strong> at the same time.</li>
                         <li>Each team adds its two cards: A 8, K 7, Q 6, J 5, 10 4, 9 3, 8 2, 7 1.</li>
                         <li>The team with the <strong>lower total deals</strong>; the other team chooses the Hukum. Equal totals: everyone draws again.</li>
-                        <li>The dealer is a random player from the dealing team.</li>
+                        <li>A team's first dealer is a random player from that team.</li>
                     </ul>
                 </section>
 
@@ -99,7 +99,8 @@ export function RulesPanel({ onClose }: RulesPanelProps) {
                 <section className="rules-card">
                     <h3 className="display">Between Hands</h3>
                     <ul>
-                        <li>The team with the <strong>negative score</strong> deals next (a random player from that team).</li>
+                        <li>The team with the <strong>negative score</strong> deals next.</li>
+                        <li>Teammates <strong>take turns</strong> to deal for their team; the order resets each match.</li>
                         <li>Back at <strong>0 : 0</strong>, the team that climbed up from negative deals.</li>
                         <li>The other team chooses the Hukum next hand.</li>
                     </ul>

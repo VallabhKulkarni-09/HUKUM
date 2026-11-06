@@ -38,6 +38,8 @@ export class GameEngine {
     private remainingDeck: Card[];
     /** Score when the current hand was dealt (to know who climbed back to 0) */
     private handStartScore: Score = { A: 0, B: 0 };
+    /** When the current hand's first 4 cards were dealt (ms since epoch); used for pacing only */
+    private firstDealAt = 0;
 
     constructor() {
         this.stateMachine = createStateMachine();
@@ -70,6 +72,7 @@ export class GameEngine {
             dealerTeam: null,
             trumpTeam: null,
             lastNegativeTeam: null,
+            lastDealerSeat: { A: null, B: null },
         };
     }
 
@@ -289,6 +292,8 @@ export class GameEngine {
         this.gameState.trumpChooserId = null;
         this.gameState.dealerTeam = null;
         this.gameState.trumpTeam = null;
+        // New match: dealing turns start over
+        this.gameState.lastDealerSeat = { A: null, B: null };
         for (const p of this.players.values()) p.hand = [];
         this.gameState.toss = this.newTossRound(1, now);
     }
@@ -357,20 +362,37 @@ export class GameEngine {
         this.gameState.dealerTeam = toss.result;
         this.gameState.trumpTeam = getOppositeTeam(toss.result);
         this.gameState.toss = null;
-        this.setRandomDealer(toss.result);
+        this.setTeamDealer(toss.result);
         this.dealFirstHalf();
         return true;
     }
 
-    /** Random dealer from `team`; the Hukum chooser sits in the next seat */
-    private setRandomDealer(team: TeamId): Player | null {
+    /**
+     * Dealer from `team`. Teammates take turns: whoever did not deal the team's
+     * last hand deals now. A team's first deal of the match goes to a random member.
+     * The Hukum chooser sits in the next seat.
+     */
+    getFirstDealAt(): number {
+        return this.firstDealAt;
+    }
+
+    private setTeamDealer(team: TeamId): Player | null {
         const options = [...this.players.values()].filter(p => p.team === team);
         if (options.length === 0) return null;
-        const dealer = options[Math.floor(Math.random() * options.length)];
+        const last = this.gameState.lastDealerSeat[team];
+        const others = options.filter(p => p.seat !== last);
+        const pool = last !== null && others.length > 0 ? others : options;
+        const dealer = pool[Math.floor(Math.random() * pool.length)];
+        this.setDealer(dealer);
+        return dealer;
+    }
+
+    /** Make `dealer` the dealer and remember them for the team's turn order */
+    private setDealer(dealer: Player): void {
         this.gameState.dealerId = dealer.id;
+        this.gameState.lastDealerSeat[dealer.team] = dealer.seat;
         const trumpChooser = this.getPlayerBySeat(((dealer.seat + 1) % 4) as SeatPosition);
         this.gameState.trumpChooserId = trumpChooser!.id;
-        return dealer;
     }
 
     /**
@@ -381,6 +403,7 @@ export class GameEngine {
         this.gameState.phase = 'DEALING_FIRST';
 
         this.handStartScore = { ...this.gameState.score };
+        this.firstDealAt = Date.now();
 
         // Create and shuffle deck
         this.deck = shuffleDeck(createDeck());
@@ -756,9 +779,9 @@ export class GameEngine {
         const choosingTeam = this.gameState.dealerTeam
             ?? getDealerChoosingTeam(this.gameState.score, this.gameState.lastNegativeTeam);
 
-        const dealer = this.setRandomDealer(choosingTeam);
+        const dealer = this.setTeamDealer(choosingTeam);
         if (!dealer) return false;
-        console.log(`[DEALER] Random dealer: ${dealer.name} (Team ${choosingTeam})`);
+        console.log(`[DEALER] Dealer: ${dealer.name} (Team ${choosingTeam}, seat ${dealer.seat})`);
 
         // Reset for new hand
         this.resetForNewHand();
@@ -780,12 +803,7 @@ export class GameEngine {
             ?? getDealerChoosingTeam(this.gameState.score, this.gameState.lastNegativeTeam);
         if (dealer.team !== choosingTeam) return false;
 
-        this.gameState.dealerId = dealerId;
-
-        // Set trump chooser
-        const trumpChooserSeat = ((dealer.seat + 1) % 4) as SeatPosition;
-        const trumpChooser = this.getPlayerBySeat(trumpChooserSeat);
-        this.gameState.trumpChooserId = trumpChooser!.id;
+        this.setDealer(dealer);
 
         // Reset for new hand
         this.resetForNewHand();

@@ -4,13 +4,15 @@
 // you bottom-left, your hand fanned at the bottom, trick in the middle.
 // ============================================
 
-import { useEffect, useLayoutEffect, useState, useSyncExternalStore } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type Ref } from 'react';
 import type { PublicGameState, PublicPlayer, Card, PlayerId, Suit, TeamId, TrickCard } from '../types';
 import type { HandResult } from '../hooks/useWebSocket';
 import { formatScore, getTrickWinnerId } from '../gameUtils';
 import { TableScene, Loader } from './scene/Scene';
 import { PlayingCard, CardFan, CardBack } from './cards/PlayingCard';
 import { TossStage } from './toss/TossStage';
+import { HukumFly } from './hukum/HukumReveal';
+import { useHukumReveal } from './hukum/useHukumReveal';
 import { SuitIcon } from './cards/SuitIcon';
 import { SUIT_LABEL } from './cards/suitLabels';
 import { PlayerHand } from './PlayerHand';
@@ -131,6 +133,11 @@ function Table({
         : undefined;
 
     const trickWinnerId = trickFull ? getTrickWinnerId(currentTrick, trumpSuit) : null;
+
+    // Hukum reveal: the suit flies into the medal once the deal has finished
+    const hukum = useHukumReveal(vakkai.active ? null : trumpSuit, dealing);
+    const medalRef = useRef<HTMLSpanElement>(null);
+    const hukumChooserId = hukum.announced ? gameState.trumpChooserId : null;
     const posOf = (seat: number): SeatPos => POSITIONS[(seat - (me?.seat ?? 0) + 4) % 4];
 
     // Targets: trump team 5 tricks, dealer team 4 (Vakkai: declarer needs 4 in a row)
@@ -193,7 +200,8 @@ function Table({
         myTeam,
         trickCards: dealing ? NO_TRICK : currentTrick.cards,
         trickCounts,
-        trumpSuit,
+        // The Hukum sound plays with the reveal, not when the server decides
+        trumpSuit: hukum.announced ? trumpSuit : null,
         vakkaiActive: vakkai.active,
         myMove: (canPlay || showDecision) && sittingOutId !== playerId,
         handResult: lastHandResult,
@@ -225,7 +233,14 @@ function Table({
                         );
                     })}
                 </div>
-                <HukumBadge suit={trumpSuit} vakkai={vakkai.active} wins={vakkai.consecutiveWins} />
+                <HukumBadge
+                    suit={hukum.medalSuit}
+                    vakkai={vakkai.active}
+                    wins={vakkai.consecutiveWins}
+                    lit={hukum.medalSuit !== null}
+                    landed={hukum.landed}
+                    medalRef={medalRef}
+                />
             </header>
 
             <div className="tbl-actions">
@@ -243,6 +258,7 @@ function Table({
                     isTurn={!dealing && p.id === gameState.currentTurnId && !trickFull && !isOver && phase !== 'HUKUM_SELECTION'}
                     isChoosing={!dealing && phase === 'HUKUM_SELECTION' && p.id === gameState.trumpChooserId}
                     isDealer={p.id === gameState.dealerId}
+                    isHukumChooser={p.id === hukumChooserId}
                     isDeclarer={vakkai.active && p.id === vakkai.declarerId}
                     isSittingOut={p.id === sittingOutId}
                     tossPicked={tossPicked(p.id)}
@@ -303,6 +319,7 @@ function Table({
                         isDim={sittingOutId === playerId}
                     >
                         {me.id === gameState.dealerId && <span className="av-badge dealer" title="Dealer">D</span>}
+                        {me.id === hukumChooserId && <span className="av-badge hukum" title="Chose Hukum">H</span>}
                         {vakkai.active && me.id === vakkai.declarerId && <span className="av-badge vakkai" title="Vakkai">V</span>}
                         {tossPicked(me.id) && <span className="av-badge toss-chip" title="Card picked"><CardBack /></span>}
                     </AvatarFrame>
@@ -331,6 +348,9 @@ function Table({
             {/* ---- Shuffle + deal (presentation only) ---- */}
             {deal.job && <DealLayer key={deal.job.id} director={director} jobId={deal.job.id} myId={playerId} />}
 
+            {/* ---- Hukum reveal: suit card flies into the medal ---- */}
+            {hukum.flyingSuit && <HukumFly key={hukum.flyingSuit} suit={hukum.flyingSuit} targetRef={medalRef} onDone={hukum.land} />}
+
             {/* ---- Results ---- */}
             {phase === 'HAND_END' && (
                 <HandResultModal result={lastHandResult} score={score} myTeam={myTeam} />
@@ -355,18 +375,20 @@ interface SeatProps {
     isTurn: boolean;
     isChoosing: boolean;
     isDealer: boolean;
+    isHukumChooser: boolean;
     isDeclarer: boolean;
     isSittingOut: boolean;
     tossPicked: boolean;
 }
 
-function Seat({ player, cardCount, position, isPartner, isTurn, isChoosing, isDealer, isDeclarer, isSittingOut, tossPicked }: SeatProps) {
+function Seat({ player, cardCount, position, isPartner, isTurn, isChoosing, isDealer, isHukumChooser, isDeclarer, isSittingOut, tossPicked }: SeatProps) {
     const classes = ['seat', position, isTurn || isChoosing ? 'turn' : '', isSittingOut || !player.isConnected ? 'dim' : ''].filter(Boolean).join(' ');
     return (
         <div className={classes} data-deal-seat={player.id} aria-label={`${player.name}${isPartner ? ', your partner' : ', opponent'}${isTurn ? ', playing now' : ''}`}>
             <div className="seat-id">
                 <AvatarFrame name={player.name} isBot={player.isBot} team={player.team} size="md" isTurn={isTurn || isChoosing} isDim={isSittingOut}>
                     {isDealer && <span className="av-badge dealer" title="Dealer">D</span>}
+                    {isHukumChooser && <span className="av-badge hukum" title="Chose Hukum">H</span>}
                     {isDeclarer && <span className="av-badge vakkai" title="Vakkai">V</span>}
                     {!player.isConnected && <span className="av-badge offline">OFFLINE</span>}
                     {cardCount > 0 && <span className="av-badge count" aria-hidden>{cardCount}</span>}
@@ -399,7 +421,16 @@ function TrickDots({ won, target }: { won: number; target: number | null }) {
     );
 }
 
-function HukumBadge({ suit, vakkai, wins }: { suit: Suit | null; vakkai: boolean; wins: number }) {
+function HukumBadge({ suit, vakkai, wins, lit, landed, medalRef }: {
+    suit: Suit | null;
+    vakkai: boolean;
+    wins: number;
+    /** Soft glow while this hand's Hukum is known */
+    lit: boolean;
+    /** The suit has just flown in (one-shot pop) */
+    landed: boolean;
+    medalRef: Ref<HTMLSpanElement>;
+}) {
     if (vakkai) {
         return (
             <div className="hukum-badge vakkai" aria-label={`Vakkai, ${wins} of 4 tricks in a row`}>
@@ -409,9 +440,9 @@ function HukumBadge({ suit, vakkai, wins }: { suit: Suit | null; vakkai: boolean
         );
     }
     return (
-        <div className="hukum-badge" aria-label={suit ? `Hukum is ${SUIT_LABEL[suit]}` : 'Hukum not chosen yet'}>
+        <div className={`hukum-badge ${lit ? 'lit' : ''} ${landed ? 'landed' : ''}`} aria-label={suit ? `Hukum is ${SUIT_LABEL[suit]}` : 'Hukum not chosen yet'}>
             <span className="hukum-label">HUKUM</span>
-            <span className="hukum-medal">
+            <span className="hukum-medal" ref={medalRef}>
                 {suit ? <SuitIcon suit={suit} /> : <span className="hukum-q display">?</span>}
             </span>
         </div>

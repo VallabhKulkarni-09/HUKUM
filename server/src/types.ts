@@ -142,6 +142,9 @@ export interface GameState {
 
     /** Team that was below zero before the last hand (decides the dealer at 0 : 0) */
     lastNegativeTeam: TeamId | null;
+
+    /** Seat of each team's most recent dealer; teammates take turns dealing (reset every match) */
+    lastDealerSeat: Record<TeamId, SeatPosition | null>;
 }
 
 // --- Opening toss ---

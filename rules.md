@@ -55,7 +55,7 @@ Spade, Heart, Diamond, Club (no inherent hierarchy except trump)
 5. **Lowest total team** → Deals first (dealer team)
 6. **Highest total team** → Declares Hukum (trump team)
 7. **Equal totals** → everyone draws again from a new spread
-8. The dealer is a **random player** from the dealer team
+8. The dealer is a **random player** from the dealer team (a team's first deal of the match)
 
 > **Note**: This happens at the start of every match, including rematches. Subsequent dealer selection follows Section 10.
 
@@ -191,12 +191,18 @@ Match ends when: `Score ≥ +16` OR `Score ≤ −16`
 After each hand:
 
 1. Identify the team with **negative score**
-2. That team deals; the dealer is a **random player** from that team
+2. That team deals
 3. The **other team** (positive score) will declare Hukum next hand
+
+### Who Deals Within the Team
+- Teammates **take turns**: if P1 dealt the team's last hand, P3 deals the team's next one, then P1 again
+- A team's **first deal** of the match goes to a **random player** from that team
+- A Vakkai hand counts as a turn to deal
+- Each team keeps its own turn order; it **resets at the start of every match** (including rematches)
 
 ### Edge Case: Score Returns to 0-0
 If a team was negative and returns to 0:
-- The team that **came from negative to 0** deals (random player)
+- The team that **came from negative to 0** deals (teammates still take turns)
 - (There is no true tie scenario in normal gameplay)
 
 ---

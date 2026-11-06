@@ -23,6 +23,21 @@ const autoTurnTimers = new Map<string, NodeJS.Timeout>();
 const BOT_DECISION_DELAY_MS = 800;
 const BOT_PLAY_DELAY_MS = 1000;
 const DISCONNECTED_PLAY_DELAY_MS = 2000;
+/**
+ * After Hukum is chosen, clients animate the second deal and then fly the suit
+ * into the Hukum medal. Automated players hold their first card until then;
+ * humans can still play at any time. Measured client timings:
+ * - second deal on its own: ~3 s after Hukum is chosen
+ * - when Hukum is chosen while the first deal is still animating, the two deals
+ *   run back to back and end ~6.8 s after the first deal started
+ * - Hukum flight: ~1.3 s (+ a small margin)
+ */
+const SECOND_DEAL_MS = 3000;
+const BOTH_DEALS_MS = 6800;
+const HUKUM_FLIGHT_MS = 1600;
+
+// Per room: time (ms since epoch) before which automated players don't play
+const autoPlayNotBefore = new Map<string, number>();
 
 // Opening toss pacing
 const TOSS_BOT_PICK_MIN_MS = 900;
@@ -177,7 +192,10 @@ function scheduleAutoTurn(roomCode: string, roomManager: RoomManager): void {
     }
 
     const room = roomManager.getRoom(roomCode);
-    if (!room) return;
+    if (!room) {
+        autoPlayNotBefore.delete(roomCode);
+        return;
+    }
 
     // Don't let bots play on in an abandoned room; resumes when someone rejoins
     if (!room.engine.hasConnectedHumans()) return;
@@ -204,6 +222,16 @@ function scheduleAutoTurn(roomCode: string, roomManager: RoomManager): void {
         delay = DISCONNECTED_PLAY_DELAY_MS;
     } else {
         return;
+    }
+
+    // Let the Hukum reveal finish before the first automated card
+    if (isPlayPhase) {
+        const notBefore = autoPlayNotBefore.get(roomCode);
+        if (notBefore !== undefined) {
+            const wait = notBefore - Date.now();
+            if (wait > delay) delay = wait;
+            else if (wait <= 0) autoPlayNotBefore.delete(roomCode);
+        }
     }
 
     const timer = setTimeout(() => {
@@ -761,6 +789,8 @@ function applyDeclareVakkai(roomCode: string, room: RoomEntry, playerId: PlayerI
 
 function applyChooseHukum(roomCode: string, room: RoomEntry, playerId: PlayerId, suit: Suit, roomManager: RoomManager): boolean {
     if (!room.engine.chooseHukum(playerId, suit)) return false;
+    const dealsEnd = Math.max(Date.now() + SECOND_DEAL_MS, room.engine.getFirstDealAt() + BOTH_DEALS_MS);
+    autoPlayNotBefore.set(roomCode, dealsEnd + HUKUM_FLIGHT_MS);
 
     roomManager.broadcast(roomCode, {
         type: 'HUKUM_CHOSEN',

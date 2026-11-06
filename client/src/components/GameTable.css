@@ -29,7 +29,7 @@
     calc(var(--safe-left) + var(--sp-2));
 }
 
-.tbl > :not(.bg-room):not(.modal-backdrop):not(.deal-layer) {
+.tbl > :not(.bg-room):not(.modal-backdrop):not(.deal-layer):not(.hukum-fly-layer) {
   position: relative;
   z-index: var(--z-hud);
 }
