@@ -37,3 +37,12 @@ coverage/
 .cache/
 temp/
 tmp/
+
+# Development-only files (for coding agents), kept local, never on GitHub
+docs/
+.kiro/
+*.md
+*.txt
+.env.example
+# Font licences must ship with the fonts (SIL Open Font License)
+!client/src/assets/fonts/LICENSE-*.txt
